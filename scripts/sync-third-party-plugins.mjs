@@ -209,7 +209,7 @@ export function exportThirdPartyPlugins({ profileDir, repositoryPath, profile = 
 
 function run(command, args, { cwd, spawnCommand = spawn } = {}) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawnCommand(command, args, { cwd, shell: false, windowsHide: true })
+    const child = spawnCommand(command, args, { cwd, shell: process.platform === 'win32', windowsHide: true })
     let output = ''
     child.stdout?.on('data', chunk => { output += chunk.toString() })
     child.stderr?.on('data', chunk => { output += chunk.toString() })
@@ -226,7 +226,7 @@ function resolveSourceRoot(sourceRoot = '', env = process.env) {
 }
 
 function packageManagerCommand() {
-  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+  return 'pnpm'
 }
 
 /** Install the manifest's public plugins and remove stale public plugins. */

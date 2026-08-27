@@ -37,13 +37,13 @@ async function writeProfile(profileDir, dependencies, bundles = []) {
 }
 
 function fakePnpm(profileDir, calls) {
-  return (command, args) => {
+  return (command, args, options) => {
     const child = new EventEmitter()
     child.stdout = new EventEmitter()
     child.stderr = new EventEmitter()
     queueMicrotask(async () => {
       try {
-        calls.push({ command, args })
+        calls.push({ command, args, options })
         const actionIndex = args.findIndex(value => value === 'add' || value === 'remove')
         const action = args[actionIndex]
         const target = args.at(-1)
@@ -165,6 +165,8 @@ test('同步按清单调用官方插件入口，并对齐已安装公开插件',
     })
 
     const result = await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, spawnCommand: fakePnpm(profileDir, calls) })
+    assert.ok(calls.every(call => call.command === 'pnpm'))
+    assert.ok(calls.every(call => call.options.shell === (process.platform === 'win32')))
     assert.deepEqual(calls.map(call => call.args), [
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--save-exact', 'example-dsh-bundle@1.2.3'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--save-exact', 'github:community/client-only-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],

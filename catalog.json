@@ -396,6 +396,13 @@
       "details": "私有仓库只保存插件清单、启停状态、配置、AGENTS.md 和加密凭据。",
       "changelog": [
         {
+          "version": "0.4.3",
+          "date": "2026-08-27",
+          "changes": [
+            "Windows 上按 DSH 官方 CLI 的方式通过 shell 启动 pnpm，恢复按清单安装插件。"
+          ]
+        },
+        {
           "version": "0.4.2",
           "date": "2026-08-27",
           "changes": [
