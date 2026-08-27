@@ -396,6 +396,13 @@
       "details": "私有仓库只保存插件清单、启停状态、配置、AGENTS.md 和加密凭据。",
       "changelog": [
         {
+          "version": "0.4.2",
+          "date": "2026-08-27",
+          "changes": [
+            "新电脑首次安装时同时安装 Host 入口所需的 DSH 运行依赖。"
+          ]
+        },
+        {
           "version": "0.4.1",
           "date": "2026-08-27",
           "changes": [

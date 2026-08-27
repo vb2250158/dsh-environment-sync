@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -47,6 +47,9 @@
     "check": "node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.8",
     "@deepseek-ai/schemastery": "^3.18.1",
     "yaml": "^2.9.0",
     "zod": "4.4.3"
