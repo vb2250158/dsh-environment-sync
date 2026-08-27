@@ -251,6 +251,16 @@ function packageManagerCommand() {
   return 'pnpm'
 }
 
+function restoreExactDependencySpecifiers(profileDir, plugins) {
+  const path = join(resolve(profileDir), 'package.json')
+  const manifest = readJson(path, 'DSH profile package.json')
+  if (manifest.dependencies === null || typeof manifest.dependencies !== 'object' || Array.isArray(manifest.dependencies)) throw new Error('DSH profile package.json dependencies must be an object')
+  for (const plugin of plugins) {
+    manifest.dependencies[plugin.name] = sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version
+  }
+  writeJsonAtomically(path, manifest)
+}
+
 /** Install the manifest's plugins and remove stale profile plugins. */
 export async function syncThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn }) {
   const safeProfile = profileName(profile)
@@ -271,6 +281,10 @@ export async function syncThirdPartyPlugins({ profileDir, repositoryPath, source
     commands.push({ name, action: 'remove', ...result })
     if (!result.ok) throw new Error(`移除插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
+  restoreExactDependencySpecifiers(profileDir, manifest.plugins)
+  const lockfile = await run(packageManagerCommand(), ['--dir', profileDir, 'install', '--lockfile-only'], { spawnCommand })
+  commands.push({ name: 'profile', action: 'lockfile', ...lockfile })
+  if (!lockfile.ok) throw new Error(`固定插件安装来源失败：${lockfile.output || `exit ${String(lockfile.exitCode)}`}`)
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands }
 }
 

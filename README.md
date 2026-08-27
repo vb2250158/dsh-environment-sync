@@ -37,7 +37,7 @@ pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
 1. 安装 `dsh-environment-sync`；
 2. 配置并克隆私有仓库；
 3. 点击“下载配置并拉取插件”；
-4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个插件；私有 fork 需要当前电脑具备仓库读取权限；
+4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个插件，并在 pnpm 安装后重新写入固定提交；私有 fork 需要当前电脑具备仓库读取权限；
 5. 重启 DSH。
 
 ## 私有仓库文件

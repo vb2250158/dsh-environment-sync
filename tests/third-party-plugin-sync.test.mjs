@@ -46,18 +46,23 @@ function fakePnpm(profileDir, calls) {
     queueMicrotask(async () => {
       try {
         calls.push({ command, args, options })
-        const actionIndex = args.findIndex(value => value === 'add' || value === 'remove')
+        const actionIndex = args.findIndex(value => value === 'add' || value === 'remove' || value === 'install')
         const action = args[actionIndex]
         const target = args.at(-1)
         const manifestPath = join(profileDir, 'package.json')
         const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+        if (action === 'install') {
+          child.stdout.emit('data', 'lockfile updated')
+          child.emit('close', 0, null)
+          return
+        }
         if (action === 'add') {
           const [name, version, bundle] = target === 'example-dsh-bundle@1.2.3'
             ? ['example-dsh-bundle', '1.2.3', true]
-            : target === 'github:community/client-only-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+            : target === 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
               ? ['client-only-plugin', '2.0.0', false]
               : (() => { throw new Error(`Unexpected add target: ${target}`) })()
-          manifest.dependencies[name] = target.startsWith('github:') ? target : version
+          manifest.dependencies[name] = target.startsWith('git+https:') ? target.replace(/#[0-9a-f]{40}$/i, '') : version
           if (bundle) manifest.dsh.profile.bundles = [...manifest.dsh.profile.bundles.filter(value => value !== name), name]
         } else if (action === 'remove') {
           delete manifest.dependencies[target]
@@ -160,7 +165,7 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
         description: '',
       }, {
         name: 'client-only-plugin',
-        specifier: 'github:community/client-only-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        specifier: 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         version: '2.0.0',
         source: 'github',
         repositoryOwner: 'community',
@@ -175,10 +180,13 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
     assert.ok(calls.every(call => call.options.shell === (process.platform === 'win32')))
     assert.deepEqual(calls.map(call => call.args), [
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--save-exact', 'example-dsh-bundle@1.2.3'],
-      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--save-exact', 'github:community/client-only-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--save-exact', 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', 'obsolete-dsh-bundle'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', 'obsolete-client-plugin'],
+      ['--dir', profileDir, 'install', '--lockfile-only'],
     ])
+    const restoredProfile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+    assert.equal(restoredProfile.dependencies['client-only-plugin'], 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
     assert.deepEqual(result.plugins.map(plugin => plugin.name), ['example-dsh-bundle', 'client-only-plugin'])
     const status = inspectThirdPartyPlugins({ profileDir, repositoryPath: repository })
     assert.equal(status.plugins[0].installed.version, '1.2.3')
