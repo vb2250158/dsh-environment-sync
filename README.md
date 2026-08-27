@@ -1,0 +1,64 @@
+# dsh-plugin-manager
+
+DSH 插件管理与多电脑环境同步插件。
+
+## 数据分工
+
+- 每个插件使用独立公开 GitHub 仓库。
+- 私有仓库只保存插件清单、固定提交、启停状态、完整配置、`AGENTS.md` 和加密凭据。
+- 会话、附件、日志、缓存、数据库和电脑专用覆盖不上传。
+- `$DSH_HOME/private-sync.local.yaml` 保存当前电脑的路径等覆盖。
+- `$DSH_HOME/private-sync.key` 只在电脑之间手工安全传递，不进入 Git。
+
+## 安装
+
+锁定提交后，通过 DSH 官方入口安装管理插件：
+
+```powershell
+pnpm dsh plugin --profile web add github:vb2250158/dsh-plugin-manager#<commit>
+```
+
+首次使用时，在“设置 → 我的插件”填写私有配置仓库和本地目录。
+
+## 同步流程
+
+### 上传当前电脑
+
+“上传当前环境”会：
+
+1. 记录 profile 中每个公开插件的精确安装来源与版本；
+2. 导出 `settings.yaml`、profile/home patch 和 `AGENTS.md`；
+3. 使用 AES-256-GCM 与 scrypt 加密凭据；
+4. 提交并推送私有配置仓库。
+
+### 新电脑恢复
+
+1. 安装 `dsh-plugin-manager`；
+2. 配置并克隆私有仓库；
+3. 点击“下载配置并拉取插件”；
+4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个公开插件；
+5. 重启 DSH。
+
+## 私有仓库文件
+
+```text
+environment.json
+settings.yaml
+AGENTS.md
+cordis.patch.yml
+profiles/web/cordis.patch.yml
+config/plugins.json
+credentials.enc.json
+```
+
+## 验证
+
+```powershell
+pnpm test
+pnpm run check
+pnpm pack --dry-run
+```
+
+## 许可证
+
+MIT

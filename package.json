@@ -1,0 +1,73 @@
+{
+  "name": "dsh-plugin-manager",
+  "version": "0.3.0",
+  "description": "Open-source DSH plugin manager with private multi-computer environment synchronization.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./invariant": "./lib/invariant.js",
+    "./client": "./lib/client.js",
+    "./typert": "./lib/typert.host.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "catalog.json",
+    "cordis.patch.yml",
+    "lib",
+    "scripts/private-environment-sync.mjs",
+    "scripts/sync-third-party-plugins.mjs",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/private-plugin-manager.test.mjs tests/private-plugin-manager-client.test.mjs tests/private-plugin-manager-typert.test.mjs tests/private-environment-sync.test.mjs tests/third-party-plugin-sync.test.mjs",
+    "check": "node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "yaml": "^2.9.0",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1",
+    "@deepseek-ai/dsh-api-remotes": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-invariants": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.8",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.8",
+    "react": "^18.2.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vb2250158/dsh-plugin-manager.git"
+  },
+  "homepage": "https://github.com/vb2250158/dsh-plugin-manager#readme",
+  "bugs": {
+    "url": "https://github.com/vb2250158/dsh-plugin-manager/issues"
+  }
+}

@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "client-ui-theme-blue",
+      "name": "主题与装饰",
+      "packageName": "dsh-theme-blue",
+      "repository": "vb2250158/dsh-theme-blue",
+      "loaderId": "ui-theme-blue",
+      "description": "私有主题基础、样式包和贴纸装饰的入口。",
+      "details": "覆盖官方“外观”设置入口；基础亮暗模式、私有样式包和贴纸都由这里管理。",
+      "changelog": [
+        {
+          "version": "0.1.0-rc.8.8",
+          "date": "2026-08-23",
+          "changes": [
+            "已隐藏的提供方仍保留在模型列表中，可随时重新显示。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.7",
+          "date": "2026-08-23",
+          "changes": [
+            "模型列表和模型下拉改用同一会话目录；隐藏项会立即从下拉中移除。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.6",
+          "date": "2026-08-21",
+          "changes": [
+            "选中的浅蓝、深蓝和跟随系统模式会使用主按钮的反色描述文字，浅蓝主题下仍清晰可读。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.5",
+          "date": "2026-08-21",
+          "changes": [
+            "主题选择改用 DSH 官方 Button 的 primary 和 outline 样式；选中状态由组件变体表示。",
+            "蓝色主题不再覆盖官方按钮、输入框和卡片的圆角与交互几何，只覆盖私有主题选择卡的布局。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.4",
+          "date": "2026-08-21",
+          "changes": [
+            "蓝色主题增加可撤销的 UI 样式包，统一表面圆角、阴影、输入控件和键盘焦点外观。",
+            "样式使用 DSH 语义 token，并由私有根类限定；停用主题 loader 后样式和根类一起清理。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.3",
+          "date": "2026-08-21",
+          "changes": [
+            "私有“主题与装饰”页面接管外观选择，官方通用设置中的外观入口不再显示。",
+            "蓝色 token 覆盖层随私有主题插件加载；后续样式包和贴纸装饰使用同一私有主题入口。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.2",
+          "date": "2026-08-21",
+          "changes": [
+            "改用 DSH 官方 theme.overrideTokens() 覆盖层，不再把蓝色作为第四个持久化外观。",
+            "蓝色主题会跟随当前浅色、深色或跟随系统外观，刷新和重启后保持启用状态。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.1",
+          "changes": [
+            "修复浏览器模块登记名称，蓝色主题可随私有插件页面一起加载。"
+          ],
+          "date": "2026-08-20"
+        },
+        {
+          "version": "0.1.0-rc.8",
+          "date": "2026-08-20",
+          "changes": [
+            "适配 DSH 0.1.0-rc.8。",
+            "保留私有设置中的蓝色主题选择，刷新和重启后恢复。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.7",
+          "date": "2026-08-19",
+          "changes": [
+            "新增可选蓝色主题和主题 token 覆盖。",
+            "主题选择可在刷新和重启后恢复。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "client-ui-turn-continuation",
+      "name": "中断任务继续",
+      "packageName": "dsh-turn-continuation",
+      "repository": "vb2250158/dsh-turn-continuation",
+      "loaderId": "turn-continuation",
+      "description": "在意外中断或终止失败且尚未完成的 Agent 回合下显示继续重试按钮。",
+      "details": "点击后会以已保存的会话上下文启动一个新的继续回合；不会伪造或重接已经断开的模型流，也不会把内部继续指令显示成用户聊天气泡。",
+      "changelog": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-24",
+          "changes": [
+            "继续操作改为私有 Host Remote 直接向原 Agent 注入可审计的插件来源消息，不再把英文继续指令显示成用户输入气泡。"
+          ]
+        },
+        {
+          "version": "0.1.1",
+          "date": "2026-08-23",
+          "changes": [
+            "补齐 turn-tail 链的必需选择器，避免插件加载失败。",
+            "修复浏览器 JSX 运行时依赖。"
+          ]
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-08-24",
+          "changes": [
+            "为崩溃、重载或终止失败导致的未完成回合增加“继续重试”按钮。",
+            "按钮通过原会话启动新的继续回合，并在 Agent 正在运行时禁用。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "client-ui-provider-visibility",
+      "name": "模型下拉设置",
+      "packageName": "dsh-provider-visibility",
+      "repository": "vb2250158/dsh-provider-visibility",
+      "loaderId": "provider-visibility",
+      "description": "控制模型下拉中显示哪些提供方，并保存设置。",
+      "details": "控制模型下拉中显示哪些已配置提供方；隐藏不会删除已有路由或模型配置。",
+      "changelog": [
+        {
+          "version": "0.1.0-rc.8.6",
+          "date": "2026-08-23",
+          "changes": [
+            "修复模型列表页面的浏览器 JSX 运行时加载。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.5",
+          "date": "2026-08-23",
+          "changes": [
+            "修复模型列表设置页的浏览器注入，恢复提供方开关显示。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.4",
+          "date": "2026-08-23",
+          "changes": [
+            "模型列表直接使用模型选择器的实时提供方目录，包含已登录的订阅提供方。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.3",
+          "date": "2026-08-21",
+          "changes": [
+            "修复浏览器模块错误地请求 Host 专用 schemastery；模型下拉设置可再次加载。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.2",
+          "date": "2026-08-21",
+          "changes": [
+            "加载失败后的重试操作改用 DSH 官方 Button，与其他私有设置页保持一致。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.8.1",
+          "changes": [
+            "修复浏览器模块登记名称，模型下拉设置可正常加载。"
+          ],
+          "date": "2026-08-20"
+        },
+        {
+          "version": "0.1.0-rc.8",
+          "date": "2026-08-20",
+          "changes": [
+            "适配 DSH 0.1.0-rc.8，移除已删除的 React 绑定依赖。",
+            "改由 DSH 的 slot 渲染器绑定提供方目录和设置快照。"
+          ]
+        },
+        {
+          "version": "0.1.0-rc.7",
+          "date": "2026-08-19",
+          "changes": [
+            "新增模型列表设置页。",
+            "将提供方显示选择保存到 llm-provider-visibility 设置。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "source-preservation-guidance",
+      "name": "官方代码保护",
+      "packageName": "dsh-source-preservation-guidance",
+      "repository": "vb2250158/dsh-source-preservation-guidance",
+      "loaderId": "source-preservation-guidance",
+      "description": "将私有插件优先和官方代码保护规则注入 DSH。",
+      "details": "要求优先通过私有插件实现扩展，官方源码和 profile 保持只读。",
+      "changelog": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-23",
+          "changes": [
+            "以私有插件注入项目级保护规则。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "gpt-tool-schema-compatibility",
+      "name": "GPT 工具兼容",
+      "packageName": "dsh-gpt-tool-schema-compatibility",
+      "repository": "vb2250158/dsh-gpt-tool-schema-compatibility",
+      "loaderId": "gpt-tool-schema-compatibility",
+      "description": "修复 GPT/Codex 在 Full access 下的工具参数冲突。",
+      "details": "仅适配 GPT/Codex 模型，不改变其他模型或工具执行器。",
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-23",
+          "changes": [
+            "移除 GPT/Codex 不接受的沙箱升级字段。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "gpt-web-search",
+      "name": "GPT 联网搜索",
+      "packageName": "dsh-gpt-web-search",
+      "repository": "vb2250158/dsh-gpt-web-search",
+      "loaderId": "gpt-web-search",
+      "description": "让稳定的 web_search 工具改由 GPT 订阅模型执行联网检索。",
+      "details": "复用“设置 → 订阅”中的 ChatGPT 登录，默认调用 gpt-5.6-sol 的原生 web_search；工具名仍保持 web_search。",
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-24",
+          "changes": [
+            "新增 ChatGPT 订阅搜索提供方，解析 GPT Responses SSE 中的原生搜索结果和 URL 引用。",
+            "将 DSH 的 web_search 选择切换为 gpt-subscription，并保留原有模型可见工具接口。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "subagent-output-sanitizer",
+      "name": "子代理输出兼容",
+      "packageName": "dsh-subagent-output-sanitizer",
+      "repository": "vb2250158/dsh-subagent-output-sanitizer",
+      "loaderId": "subagent-output-sanitizer",
+      "description": "清理子代理消息中的孤立工具块。",
+      "details": "避免 Codex Responses API 因缺少工具输出而拒绝会话。",
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-23",
+          "changes": [
+            "将子代理报告中的工具块转为普通文本。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "nas-workspace-support",
+      "name": "NAS 支持增强",
+      "packageName": "dsh-nas-workspace-support",
+      "repository": "vb2250158/dsh-nas-workspace-support",
+      "loaderId": "nas-workspace-support",
+      "description": "为 NAS 工作区提供可配置的路径映射与打开行为。",
+      "details": "映射路径由当前电脑的插件设置提供，不写入共享配置。",
+      "changelog": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-23",
+          "changes": [
+            "移除设置侧栏入口；路径映射与文件打开替换继续在后台生效。"
+          ]
+        },
+        {
+          "version": "0.2.0",
+          "date": "2026-08-23",
+          "changes": [
+            "支持配置 NAS 路径映射和虚拟盘文件打开。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "rabiroute-agent",
+      "name": "RabiRoute Agent",
+      "packageName": "dsh-rabiroute-agent",
+      "repository": "vb2250158/dsh-rabiroute-agent",
+      "loaderId": "rabiroute-agent",
+      "description": "把 DSH Agent 接入 RabiRoute 的 Agent 线程和消息接口。",
+      "details": "把 DSH Agent 接入 RabiRoute Manager 的线程、消息、计划和记忆控制接口。",
+      "changelog": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-23",
+          "changes": [
+            "作为私有 bundle loader 挂载，RabiRoute 工具和 Manager 接口可在 DSH 会话中使用。"
+          ]
+        },
+        {
+          "version": "0.1.2",
+          "date": "2026-08-20",
+          "changes": [
+            "当前版本包含 RabiRoute Manager 的 Agent 线程、消息、计划和记忆控制接入。",
+            "当前版本提供运行状态查询，供私有插件管理页显示。"
+          ]
+        }
+      ],
+      "manageable": false
+    },
+    {
+      "id": "opencode-go-usage",
+      "name": "OpenCode Go 额度",
+      "packageName": "dsh-opencode-go-usage",
+      "repository": "vb2250158/dsh-opencode-go-usage",
+      "loaderId": "opencode-go-usage",
+      "description": "查看 OpenCode Go 订阅的剩余额度。",
+      "details": "读取当前 OpenCode Go 订阅额度；凭据只从 DSH 凭据设置读取，不写入私有仓库。",
+      "changelog": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-21",
+          "changes": [
+            "刷新额度操作改用 DSH 官方 Button，保留私有主题颜色。"
+          ]
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "changes": [
+            "新增 OpenCode Go 额度设置页。",
+            "显示额度窗口、剩余百分比和重置时间。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "rabi-default-persona",
+      "name": "Rabi 全局默认人格",
+      "packageName": "dsh-rabi-default-persona",
+      "repository": "vb2250158/dsh-rabi-default-persona",
+      "loaderId": "rabi-default-persona",
+      "description": "通过 Rabi Manager 选择并启用全局 Rabi 人格。",
+      "details": "从 Rabi Manager 选择要用于整个 DSH 的默认人格。",
+      "changelog": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-24",
+          "changes": [
+            "Rabi Manager 未启动或人格尚未加载时，不再中断 DSH 回合。",
+            "连接恢复并成功读取人格后，仍通过 Rabi Manager 注入全局人格。"
+          ]
+        },
+        {
+          "version": "Unreleased",
+          "date": "2026-08-23",
+          "changes": [
+            "聊天侧栏在设置入口上方新增计划按钮，读取并展示当前 Rabi 人格的全部 Manager 计划。",
+            "通过 Rabi Manager 获取人格列表与选中人格正文，不再扫描本地目录。",
+            "启用时先从 Manager 成功加载人格，再持久化为全局 DSH 绑定。",
+            "Manager 不可连接时显示状态并阻止启用。",
+            "补齐 Typert Remote 合同，恢复设置页与宿主通信。"
+          ]
+        }
+      ],
+      "manageable": true
+    },
+    {
+      "id": "plugin-manager",
+      "name": "插件与多电脑同步",
+      "packageName": "dsh-plugin-manager",
+      "repository": "vb2250158/dsh-plugin-manager",
+      "loaderId": "plugin-manager",
+      "description": "保存私有环境配置，并按固定提交拉取每个公开插件。",
+      "details": "私有仓库只保存插件清单、启停状态、配置、AGENTS.md 和加密凭据。",
+      "changelog": [
+        {
+          "version": "0.3.0",
+          "date": "2026-08-27",
+          "changes": [
+            "改为每个插件一个公开仓库。",
+            "私有仓库只保存环境配置。",
+            "同步时按固定提交安装公开插件。"
+          ]
+        }
+      ],
+      "manageable": false
+    }
+  ]
+}

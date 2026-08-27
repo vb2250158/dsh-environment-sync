@@ -1,0 +1,16 @@
+node_modules/
+*.tgz
+.tmp-*/
+lib/rabiroute-agent-status.js
+scripts/attach-private-profile.*
+scripts/build-*-client.mjs
+scripts/migrate-nas-workspace.mjs
+scripts/run-dsh-web.ps1
+scripts/sync-settings.ps1
+tests/private-profile-attach.test.mjs
+tests/provider-visibility-client.test.mjs
+tests/rabi-default-persona.test.mjs
+tests/theme-blue-client.test.mjs
+tests/theme-token-audit.test.mjs
+tests/turn-continuation-client.test.mjs
+docs/
