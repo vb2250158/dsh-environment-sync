@@ -18,7 +18,7 @@ import {
   writeRepositoryConfig,
 } from '../lib/private-plugin-manager.js'
 
-function temporaryHome() { return mkdtempSync(join(tmpdir(), 'dsh-plugin-manager-')) }
+function temporaryHome() { return mkdtempSync(join(tmpdir(), 'dsh-environment-sync-')) }
 function writePackage(profileDir, name, version) {
   const directory = join(profileDir, 'node_modules', ...name.split('/'))
   mkdirSync(directory, { recursive: true })
@@ -29,7 +29,7 @@ function profile(home) {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'package.json'), JSON.stringify({
     dependencies: {
-      [PRIVATE_PLUGIN_PACKAGE_NAME]: 'github:vb2250158/dsh-plugin-manager#1111111111111111111111111111111111111111',
+      [PRIVATE_PLUGIN_PACKAGE_NAME]: 'github:vb2250158/dsh-environment-sync#1111111111111111111111111111111111111111',
       'dsh-theme-blue': 'github:vb2250158/dsh-theme-blue#2222222222222222222222222222222222222222',
     },
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', PRIVATE_PLUGIN_PACKAGE_NAME, 'dsh-theme-blue'] } },
@@ -64,12 +64,13 @@ test('状态从 profile 已安装包读取每个独立插件版本', () => {
   try {
     profile(home)
     const status = readPrivatePluginStatus({ dshHome: home })
-    assert.equal(status.package.name, 'dsh-plugin-manager')
+    assert.equal(status.package.name, 'dsh-environment-sync')
     assert.equal(status.package.installedVersion, '0.3.0')
     assert.equal(status.plugins.length, 12)
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-theme-blue').localVersion, '0.1.0-rc.8.6')
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-theme-blue').author, 'vb2250158')
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-gpt-web-search').installed, false)
-    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-plugin-manager').manageable, false)
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-environment-sync').manageable, false)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 

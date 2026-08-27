@@ -87,7 +87,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "client-ui-turn-continuation",
@@ -122,7 +123,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "client-ui-provider-visibility",
@@ -192,7 +194,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "source-preservation-guidance",
@@ -211,7 +214,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "gpt-tool-schema-compatibility",
@@ -230,7 +234,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "gpt-web-search",
@@ -247,6 +252,28 @@
           "changes": [
             "新增 ChatGPT 订阅搜索提供方，解析 GPT Responses SSE 中的原生搜索结果和 URL 引用。",
             "将 DSH 的 web_search 选择切换为 gpt-subscription，并保留原有模型可见工具接口。"
+          ]
+        }
+      ],
+      "manageable": true,
+      "author": "vb2250158"
+    },
+    {
+      "id": "openai-responses-web-search",
+      "name": "OpenAI Responses 联网搜索",
+      "packageName": "dsh-openai-responses-web-search",
+      "repository": "vb2250158/dsh-openai-responses-web-search",
+      "author": "vb2250158",
+      "loaderId": "openai-responses-web-search",
+      "description": "通过兼容 OpenAI Responses API 的服务提供 web_search。",
+      "details": "地址、凭据环境变量名和模型保存在私有 profile 配置中，公开源码不保存真实部署信息。",
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-27",
+          "changes": [
+            "将 profile 本地脚本迁移为独立公开插件。",
+            "保留可配置的 API 地址、凭据环境变量名和模型。"
           ]
         }
       ],
@@ -269,7 +296,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "nas-workspace-support",
@@ -295,7 +323,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
       "id": "rabiroute-agent",
@@ -322,34 +351,8 @@
           ]
         }
       ],
-      "manageable": false
-    },
-    {
-      "id": "opencode-go-usage",
-      "name": "OpenCode Go 额度",
-      "packageName": "dsh-opencode-go-usage",
-      "repository": "vb2250158/dsh-opencode-go-usage",
-      "loaderId": "opencode-go-usage",
-      "description": "查看 OpenCode Go 订阅的剩余额度。",
-      "details": "读取当前 OpenCode Go 订阅额度；凭据只从 DSH 凭据设置读取，不写入私有仓库。",
-      "changelog": [
-        {
-          "version": "0.1.1",
-          "date": "2026-08-21",
-          "changes": [
-            "刷新额度操作改用 DSH 官方 Button，保留私有主题颜色。"
-          ]
-        },
-        {
-          "version": "0.1.0",
-          "date": "2026-08-20",
-          "changes": [
-            "新增 OpenCode Go 额度设置页。",
-            "显示额度窗口、剩余百分比和重置时间。"
-          ]
-        }
-      ],
-      "manageable": true
+      "manageable": false,
+      "author": "vb2250158"
     },
     {
       "id": "rabi-default-persona",
@@ -380,15 +383,16 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "author": "vb2250158"
     },
     {
-      "id": "plugin-manager",
-      "name": "插件与多电脑同步",
-      "packageName": "dsh-plugin-manager",
-      "repository": "vb2250158/dsh-plugin-manager",
-      "loaderId": "plugin-manager",
-      "description": "保存私有环境配置，并按固定提交拉取每个公开插件。",
+      "id": "environment-sync",
+      "name": "环境同步与插件管理",
+      "packageName": "dsh-environment-sync",
+      "repository": "vb2250158/dsh-environment-sync",
+      "loaderId": "environment-sync",
+      "description": "同步多台电脑的 DSH 配置，并管理本人编写的公开插件。",
       "details": "私有仓库只保存插件清单、启停状态、配置、AGENTS.md 和加密凭据。",
       "changelog": [
         {
@@ -401,7 +405,8 @@
           ]
         }
       ],
-      "manageable": false
+      "manageable": false,
+      "author": "vb2250158"
     }
   ]
 }

@@ -15,7 +15,7 @@ async function loadClientBundle() {
   globalThis.window = { __ModuleLoader__: { load: value => { loaded = value } } }
   try {
     await import(`${clientBundleUrl}?test=${Date.now()}-${Math.random()}`)
-    assert.equal(loaded.id, 'dsh-plugin-manager')
+    assert.equal(loaded.id, 'dsh-environment-sync')
     return loaded.factory(id => {
       if (id === 'react') return fakeReact
       if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: 'DshButton' }
@@ -31,10 +31,10 @@ function context() {
   const registered = []
   const mounted = []
   const status = {
-    plugins: [{ id: 'theme', name: '主题', packageName: 'dsh-theme-blue', repository: 'vb2250158/dsh-theme-blue', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true }],
+    plugins: [{ id: 'theme', name: '主题', packageName: 'dsh-theme-blue', repository: 'vb2250158/dsh-theme-blue', author: 'vb2250158', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true }],
     dataRepository: { remoteUrl: 'https://github.com/example/private', localPath: 'C:/Private', isGitRepository: true, changes: 0, canClone: false },
     environment: { configured: true, bundleCount: 3, settingsNamespaceCount: 5, credentialsEncrypted: true },
-    thirdParty: { configured: true, plugins: [] },
+    thirdParty: { configured: true, plugins: [{ name: 'community-plugin', version: '1.0.0', specifier: 'github:community/plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'community', installed: null }] },
     operation: { state: 'idle', action: null, message: '' },
     restartRequired: false,
     refreshRequired: false,
@@ -55,7 +55,7 @@ test('客户端只配置私有仓库，并提供按清单拉取公开插件的�
   const client = await loadClientBundle()
   const { ctx, mounted, registered } = context()
   await client.apply(ctx)
-  assert.equal(mounted[0].package, 'dsh-plugin-manager')
+  assert.equal(mounted[0].package, 'dsh-environment-sync')
   assert.deepEqual(mounted[0].descriptors.map(item => item.method), ['status', 'configure', 'setEnabled', 'cloneData', 'publishData', 'syncData', 'recordThirdParty', 'syncThirdParty'])
   const configure = mounted[0].descriptors.find(item => item.method === 'configure')
   assert.deepEqual(configure.parameters[0].codec.schema.parse({ dataRemoteUrl: 'x', dataLocalPath: 'y' }), { dataRemoteUrl: 'x', dataLocalPath: 'y' })
@@ -66,6 +66,8 @@ test('客户端只配置私有仓库，并提供按清单拉取公开插件的�
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
   assert.match(source, /每个插件使用独立公开仓库/)
   assert.match(source, /下载配置并拉取插件/)
+  assert.match(source, /作者：/)
+  assert.match(source, /GitHub 仓库作者：/)
   assert.match(source, /固定来源/)
   assert.doesNotMatch(source, /本地源码目录|同步源码|克隆公开源码/)
 })

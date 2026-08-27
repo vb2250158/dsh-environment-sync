@@ -1,4 +1,4 @@
-/** Record and reproduce portable public DSH profile bundles. */
+/** Record and reproduce portable public DSH profile plugins. */
 
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, renameSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -9,10 +9,9 @@ import { pathToFileURL } from 'node:url'
 
 export const THIRD_PARTY_MANIFEST_FILENAME = 'plugins.json'
 export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 1
-export const PRIVATE_PLUGIN_PACKAGE_NAME = 'dsh-plugin-manager'
+export const PRIVATE_PLUGIN_PACKAGE_NAME = 'dsh-environment-sync'
 const OFFICIAL_PACKAGE_PREFIX = '@deepseek-ai/'
 const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
-const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/i
 
 function profileName(value) {
   if (typeof value !== 'string' || !PROFILE_NAME_PATTERN.test(value)) throw new TypeError('Plugin profile must contain only letters, numbers, underscores, and hyphens')
@@ -60,6 +59,13 @@ function sourceKind(specifier) {
   return 'registry'
 }
 
+function githubRepositoryOwner(specifier) {
+  const githubMatch = /^github:([^/]+)\/[^#]+#[0-9a-f]{40}$/i.exec(specifier)
+  if (githubMatch !== null) return githubMatch[1]
+  const httpsMatch = /^git\+https:\/\/github\.com\/([^/]+)\/[^#]+(?:\.git)?#[0-9a-f]{40}$/i.exec(specifier)
+  return httpsMatch?.[1] ?? null
+}
+
 function portableSpecifier(name, requested, version) {
   if (typeof requested !== 'string' || requested.trim() === '') throw new Error(`Plugin package ${name} has no dependency specifier`)
   const specifier = requested.trim()
@@ -102,16 +108,8 @@ function profileManifest(profileDir) {
   return readJson(join(resolve(profileDir), 'package.json'), 'DSH profile package.json')
 }
 
-function bundlePackageNames(manifest, profileDir) {
-  const dependencies = { ...(manifest.dependencies ?? {}), ...(manifest.devDependencies ?? {}) }
-  return Object.keys(dependencies).filter(name => {
-    if (isOfficialPackage(name)) return false
-    try {
-      return profilePackageBundle(packageInfo(profileDir, name).manifest)
-    } catch {
-      return false
-    }
-  })
+function profilePackagePlugin(manifest) {
+  return manifest?.dsh?.bundle?.patch !== undefined || manifest?.dsh?.client !== undefined
 }
 
 function profilePackageBundle(manifest) {
@@ -126,16 +124,19 @@ function normalizeRecord(record) {
   if (typeof specifier !== 'string' || specifier.trim() === '') throw new Error(`Plugin ${name} needs a specifier`)
   const version = typeof record.version === 'string' && record.version.trim() !== '' ? record.version : null
   const source = typeof record.source === 'string' && record.source.trim() !== '' ? record.source : sourceKind(specifier)
+  const repositoryOwner = githubRepositoryOwner(specifier.trim())
   if ((source === 'github' || /^(?:git\+|github:)/.test(specifier)) && !isSupportedGitSpecifier(specifier)) {
     throw new Error(`Git plugin package ${name} must pin a 40-character commit`)
   }
   if (/^(?:link:|file:|workspace:)/.test(specifier)) throw new Error(`Plugin package ${name} uses a local-only specifier`)
   if (/^https?:\/\//.test(specifier)) throw new Error(`Plugin package ${name} uses an unsupported tarball specifier`)
+  if (record.repositoryOwner !== undefined && record.repositoryOwner !== repositoryOwner) throw new Error(`Plugin package ${name} repository owner does not match its specifier`)
   return {
     name,
     specifier: specifier.trim(),
     version,
     source,
+    repositoryOwner,
     description: typeof record.description === 'string' ? record.description : '',
   }
 }
@@ -163,7 +164,7 @@ export function readThirdPartyManifest(path, profile = 'web') {
   return { schemaVersion: THIRD_PARTY_MANIFEST_SCHEMA_VERSION, profile: profileName(profile), plugins }
 }
 
-/** Read direct profile dependencies that are third-party DSH bundles. */
+/** Read direct profile dependencies that contribute a DSH bundle or browser client. */
 export function readInstalledThirdPartyPlugins(profileDir) {
   const manifest = profileManifest(profileDir)
   const dependencies = { ...(manifest.dependencies ?? {}), ...(manifest.devDependencies ?? {}) }
@@ -171,29 +172,35 @@ export function readInstalledThirdPartyPlugins(profileDir) {
     .filter(([name]) => !isOfficialPackage(name))
     .map(([name, requested]) => {
       const info = packageInfo(profileDir, name)
-      if (!profilePackageBundle(info.manifest)) return null
+      if (!profilePackagePlugin(info.manifest)) return null
       return {
         name,
         requested: typeof requested === 'string' ? requested : '',
         version: typeof info.manifest.version === 'string' ? info.manifest.version : null,
         source: sourceKind(typeof requested === 'string' ? requested : ''),
         description: typeof info.manifest.description === 'string' ? info.manifest.description : '',
-        bundle: true,
+        bundle: profilePackageBundle(info.manifest),
+        client: info.manifest?.dsh?.client !== undefined,
       }
     })
     .filter(value => value !== null)
 }
 
-/** Export exact portable third-party bundle records from the active profile. */
+/** Export exact portable public plugin records from the active profile. */
 export function exportThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web' }) {
   const installed = readInstalledThirdPartyPlugins(profileDir)
-  const plugins = installed.map(plugin => ({
-    name: plugin.name,
-    specifier: portableSpecifier(plugin.name, plugin.requested, plugin.version),
-    version: plugin.version,
-    source: sourceKind(portableSpecifier(plugin.name, plugin.requested, plugin.version)),
-    description: plugin.description,
-  }))
+  const plugins = installed.map(plugin => {
+    const specifier = portableSpecifier(plugin.name, plugin.requested, plugin.version)
+    const repositoryOwner = githubRepositoryOwner(specifier)
+    return {
+      name: plugin.name,
+      specifier,
+      version: plugin.version,
+      source: sourceKind(specifier),
+      ...(repositoryOwner === null ? {} : { repositoryOwner }),
+      description: plugin.description,
+    }
+  })
   const path = manifestPath(repositoryPath)
   const manifest = { schemaVersion: THIRD_PARTY_MANIFEST_SCHEMA_VERSION, profile: profileName(profile), plugins }
   writeJsonAtomically(path, manifest)
@@ -222,7 +229,7 @@ function packageManagerCommand() {
   return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 }
 
-/** Install the manifest's public plugin bundles and remove stale public plugin bundles. */
+/** Install the manifest's public plugins and remove stale public plugins. */
 export async function syncThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn }) {
   const safeProfile = profileName(profile)
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
@@ -245,7 +252,7 @@ export async function syncThirdPartyPlugins({ profileDir, repositoryPath, source
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands }
 }
 
-/** Read the committed manifest beside the currently installed public plugin bundles. */
+/** Read the committed manifest beside the currently installed public plugins. */
 export function inspectThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web' }) {
   const safeProfile = profileName(profile)
   const path = manifestPath(repositoryPath)

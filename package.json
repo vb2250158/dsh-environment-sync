@@ -1,7 +1,7 @@
 {
-  "name": "dsh-plugin-manager",
-  "version": "0.3.0",
-  "description": "Open-source DSH plugin manager with private multi-computer environment synchronization.",
+  "name": "dsh-environment-sync",
+  "version": "0.4.0",
+  "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -14,7 +14,11 @@
   "files": [
     "catalog.json",
     "cordis.patch.yml",
-    "lib",
+    "lib/client.js",
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/private-plugin-manager.js",
+    "lib/typert.host.js",
     "scripts/private-environment-sync.mjs",
     "scripts/sync-third-party-plugins.mjs",
     "README.md",
@@ -61,13 +65,14 @@
     "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.8",
     "react": "^18.2.0"
   },
+  "author": "vb2250158",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vb2250158/dsh-plugin-manager.git"
+    "url": "git+https://github.com/vb2250158/dsh-environment-sync.git"
   },
-  "homepage": "https://github.com/vb2250158/dsh-plugin-manager#readme",
+  "homepage": "https://github.com/vb2250158/dsh-environment-sync#readme",
   "bugs": {
-    "url": "https://github.com/vb2250158/dsh-plugin-manager/issues"
+    "url": "https://github.com/vb2250158/dsh-environment-sync/issues"
   }
 }
