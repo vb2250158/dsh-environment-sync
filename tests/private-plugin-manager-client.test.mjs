@@ -70,6 +70,8 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   assert.match(source, /原作者/)
   assert.match(source, /私有 fork/)
   assert.match(source, /原始上游/)
+  assert.match(source, /私有清单记录的插件/)
   assert.match(source, /固定来源/)
+  assert.doesNotMatch(source, /私有清单记录的公开插件/)
   assert.doesNotMatch(source, /本地源码目录|同步源码|克隆公开源码/)
 })
