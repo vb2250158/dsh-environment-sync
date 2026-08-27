@@ -11,7 +11,7 @@ async function writeJson(path, value) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
 }
 
-async function writePlugin(profileDir, name, version, { bundle = true, client = false, description = undefined } = {}) {
+async function writePlugin(profileDir, name, version, { bundle = true, client = false, description = undefined, author = undefined, upstreamRepository = undefined } = {}) {
   const directory = join(profileDir, 'node_modules', ...name.split('/'))
   await mkdir(directory, { recursive: true })
   await writeFile(join(directory, 'index.js'), 'export {}\n')
@@ -19,9 +19,11 @@ async function writePlugin(profileDir, name, version, { bundle = true, client = 
     name,
     version,
     ...(description === undefined ? {} : { description }),
-    ...(!bundle && !client ? {} : { dsh: {
+    ...(author === undefined ? {} : { author }),
+    ...(!bundle && !client && upstreamRepository === undefined ? {} : { dsh: {
       ...(bundle ? { bundle: { patch: './cordis.patch.yml' } } : {}),
       ...(client ? { client: { platform: 'web', inject: [] } } : {}),
+      ...(upstreamRepository === undefined ? {} : { upstreamRepository }),
     } }),
   })
 }
@@ -75,7 +77,7 @@ function fakePnpm(profileDir, calls) {
   }
 }
 
-test('记录当前公开 DSH bundle 和 client 为精确版本，并排除官方和普通依赖', async () => {
+test('记录当前 DSH bundle 和 client 为精确版本，并排除官方和普通依赖', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-third-party-export-'))
   const profileDir = join(root, 'dsh-home', 'profiles', 'web')
   const repository = join(root, 'private')
@@ -90,7 +92,7 @@ test('记录当前公开 DSH bundle 和 client 为精确版本，并排除官方
     await writePlugin(profileDir, 'dsh-environment-sync', '0.1.0')
     await writePlugin(profileDir, '@deepseek-ai/dsh-extra', '0.1.0')
     await writePlugin(profileDir, 'example-dsh-bundle', '1.2.3')
-    await writePlugin(profileDir, 'client-only-plugin', '2.0.0', { bundle: false, client: true, description: 'Client contribution' })
+    await writePlugin(profileDir, 'client-only-plugin', '2.0.0', { bundle: false, client: true, description: 'Client contribution', author: 'original-author', upstreamRepository: 'original-author/client-only-plugin' })
     await writePlugin(profileDir, 'ordinary-library', '2.0.0', { bundle: false })
 
     const recorded = exportThirdPartyPlugins({ profileDir, repositoryPath: repository })
@@ -106,6 +108,8 @@ test('记录当前公开 DSH bundle 和 client 为精确版本，并排除官方
       version: '2.0.0',
       source: 'github',
       repositoryOwner: 'community',
+      author: 'original-author',
+      upstreamRepository: 'original-author/client-only-plugin',
       description: 'Client contribution',
     }])
     assert.deepEqual(JSON.parse(await readFile(recorded.manifestPath, 'utf8')).plugins, recorded.plugins)
@@ -114,7 +118,7 @@ test('记录当前公开 DSH bundle 和 client 为精确版本，并排除官方
   }
 })
 
-test('记录拒绝本机 link 公开插件，避免写入不能跨电脑安装的清单', async () => {
+test('记录拒绝本机 link 插件，避免写入不能跨电脑安装的清单', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-third-party-link-'))
   const profileDir = join(root, 'dsh-home', 'profiles', 'web')
   try {
@@ -126,7 +130,7 @@ test('记录拒绝本机 link 公开插件，避免写入不能跨电脑安装�
   }
 })
 
-test('同步按清单调用官方插件入口，并对齐已安装公开插件', async () => {
+test('同步按清单调用官方插件入口，并对齐已安装插件', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-third-party-import-'))
   const profileDir = join(root, 'dsh-home', 'profiles', 'web')
   const repository = join(root, 'private')
@@ -146,7 +150,7 @@ test('同步按清单调用官方插件入口，并对齐已安装公开插件',
     await mkdir(join(sourceRoot, 'apps', 'cli', 'src'), { recursive: true })
     await writeFile(join(sourceRoot, 'apps', 'cli', 'src', 'bin.ts'), '')
     await writeJson(join(repository, 'config', 'plugins.json'), {
-      schemaVersion: 1,
+      schemaVersion: 2,
       profile: 'web',
       plugins: [{
         name: 'example-dsh-bundle',
@@ -160,6 +164,8 @@ test('同步按清单调用官方插件入口，并对齐已安装公开插件',
         version: '2.0.0',
         source: 'github',
         repositoryOwner: 'community',
+        author: 'original-author',
+        upstreamRepository: 'original-author/client-only-plugin',
         description: '',
       }],
     })
@@ -177,6 +183,8 @@ test('同步按清单调用官方插件入口，并对齐已安装公开插件',
     const status = inspectThirdPartyPlugins({ profileDir, repositoryPath: repository })
     assert.equal(status.plugins[0].installed.version, '1.2.3')
     assert.equal(status.plugins[1].repositoryOwner, 'community')
+    assert.equal(status.plugins[1].author, 'original-author')
+    assert.equal(status.plugins[1].upstreamRepository, 'original-author/client-only-plugin')
     assert.equal(status.plugins[1].installed.client, true)
     assert.deepEqual(status.extra, [])
   } finally {
@@ -188,12 +196,16 @@ test('清单拒绝未固定 Git 引用和本机路径', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-third-party-manifest-'))
   const path = join(root, 'plugins.json')
   try {
-    await writeJson(path, { schemaVersion: 1, profile: 'web', plugins: [{ name: 'git-plugin', specifier: 'github:owner/repo#main' }] })
+    await writeJson(path, { schemaVersion: 2, profile: 'web', plugins: [{ name: 'git-plugin', specifier: 'github:owner/repo#main' }] })
     assert.throws(() => readThirdPartyManifest(path), /40-character commit/)
-    await writeJson(path, { schemaVersion: 1, profile: 'web', plugins: [{ name: 'git-plugin', specifier: 'github:owner/repo#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'someone-else' }] })
+    await writeJson(path, { schemaVersion: 2, profile: 'web', plugins: [{ name: 'git-plugin', specifier: 'github:owner/repo#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'someone-else' }] })
     assert.throws(() => readThirdPartyManifest(path), /repository owner does not match/)
-    await writeJson(path, { schemaVersion: 1, profile: 'web', plugins: [{ name: 'local-plugin', specifier: 'file:C:/plugin' }] })
+    await writeJson(path, { schemaVersion: 2, profile: 'web', plugins: [{ name: 'local-plugin', specifier: 'file:C:/plugin' }] })
     assert.throws(() => readThirdPartyManifest(path), /local-only specifier/)
+    await writeJson(path, { schemaVersion: 2, profile: 'web', plugins: [{ name: 'fork', specifier: 'github:owner/fork#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', upstreamRepository: 'original/repository' }] })
+    assert.throws(() => readThirdPartyManifest(path), /must record its original author/)
+    await writeJson(path, { schemaVersion: 2, profile: 'web', plugins: [{ name: 'fork', specifier: 'github:owner/fork#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', author: 'original', upstreamRepository: 'not-a-repository' }] })
+    assert.throws(() => readThirdPartyManifest(path), /owner\/repository/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

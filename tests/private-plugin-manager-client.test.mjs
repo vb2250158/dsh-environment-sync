@@ -34,7 +34,7 @@ function context() {
     plugins: [{ id: 'theme', name: '主题', packageName: 'dsh-theme-blue', repository: 'vb2250158/dsh-theme-blue', author: 'vb2250158', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true }],
     dataRepository: { remoteUrl: 'https://github.com/example/private', localPath: 'C:/Private', isGitRepository: true, changes: 0, canClone: false },
     environment: { configured: true, bundleCount: 3, settingsNamespaceCount: 5, credentialsEncrypted: true },
-    thirdParty: { configured: true, plugins: [{ name: 'community-plugin', version: '1.0.0', specifier: 'github:community/plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'community', installed: null }] },
+    thirdParty: { configured: true, plugins: [{ name: 'community-plugin', version: '1.0.0', specifier: 'github:private-owner/community-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'private-owner', author: 'community', upstreamRepository: 'community/community-plugin', installed: null }] },
     operation: { state: 'idle', action: null, message: '' },
     restartRequired: false,
     refreshRequired: false,
@@ -51,7 +51,7 @@ function context() {
   return { ctx, mounted, registered }
 }
 
-test('客户端只配置私有仓库，并提供按清单拉取公开插件的操作', async () => {
+test('客户端只配置私有仓库，并提供按清单拉取插件的操作', async () => {
   const client = await loadClientBundle()
   const { ctx, mounted, registered } = context()
   await client.apply(ctx)
@@ -64,10 +64,12 @@ test('客户端只配置私有仓库，并提供按清单拉取公开插件的�
   const rendered = registered[0].component(registered[0].options.inject())
   assert.equal(rendered.type, 'div')
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
-  assert.match(source, /每个插件使用独立公开仓库/)
+  assert.match(source, /第三方修改版使用标明原作者和上游的私有 fork/)
   assert.match(source, /下载配置并拉取插件/)
   assert.match(source, /作者：/)
-  assert.match(source, /GitHub 仓库作者：/)
+  assert.match(source, /原作者/)
+  assert.match(source, /私有 fork/)
+  assert.match(source, /原始上游/)
   assert.match(source, /固定来源/)
   assert.doesNotMatch(source, /本地源码目录|同步源码|克隆公开源码/)
 })

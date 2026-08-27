@@ -1,4 +1,4 @@
-/** Record and reproduce portable public DSH profile plugins. */
+/** Record and reproduce portable DSH profile plugins. */
 
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, renameSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const THIRD_PARTY_MANIFEST_FILENAME = 'plugins.json'
-export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 1
+export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 2
 export const PRIVATE_PLUGIN_PACKAGE_NAME = 'dsh-environment-sync'
 const OFFICIAL_PACKAGE_PREFIX = '@deepseek-ai/'
 const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
@@ -64,6 +64,18 @@ function githubRepositoryOwner(specifier) {
   if (githubMatch !== null) return githubMatch[1]
   const httpsMatch = /^git\+https:\/\/github\.com\/([^/]+)\/[^#]+(?:\.git)?#[0-9a-f]{40}$/i.exec(specifier)
   return httpsMatch?.[1] ?? null
+}
+
+function packageAuthor(manifest) {
+  if (typeof manifest?.author === 'string' && manifest.author.trim() !== '') return manifest.author.trim()
+  if (manifest?.author !== null && typeof manifest?.author === 'object' && typeof manifest.author.name === 'string' && manifest.author.name.trim() !== '') return manifest.author.name.trim()
+  return null
+}
+
+function githubRepositorySlug(value, name) {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'string' || !/^[^/\s]+\/[^/\s]+$/.test(value.trim())) throw new Error(`Plugin package ${name} upstream repository must use owner/repository`)
+  return value.trim()
 }
 
 function portableSpecifier(name, requested, version) {
@@ -125,18 +137,23 @@ function normalizeRecord(record) {
   const version = typeof record.version === 'string' && record.version.trim() !== '' ? record.version : null
   const source = typeof record.source === 'string' && record.source.trim() !== '' ? record.source : sourceKind(specifier)
   const repositoryOwner = githubRepositoryOwner(specifier.trim())
+  const author = typeof record.author === 'string' && record.author.trim() !== '' ? record.author.trim() : repositoryOwner
+  const upstreamRepository = githubRepositorySlug(record.upstreamRepository, name)
   if ((source === 'github' || /^(?:git\+|github:)/.test(specifier)) && !isSupportedGitSpecifier(specifier)) {
     throw new Error(`Git plugin package ${name} must pin a 40-character commit`)
   }
   if (/^(?:link:|file:|workspace:)/.test(specifier)) throw new Error(`Plugin package ${name} uses a local-only specifier`)
   if (/^https?:\/\//.test(specifier)) throw new Error(`Plugin package ${name} uses an unsupported tarball specifier`)
   if (record.repositoryOwner !== undefined && record.repositoryOwner !== repositoryOwner) throw new Error(`Plugin package ${name} repository owner does not match its specifier`)
+  if (upstreamRepository !== null && (typeof record.author !== 'string' || record.author.trim() === '')) throw new Error(`Plugin package ${name} with an upstream repository must record its original author`)
   return {
     name,
     specifier: specifier.trim(),
     version,
     source,
     repositoryOwner,
+    ...(author === null ? {} : { author }),
+    ...(upstreamRepository === null ? {} : { upstreamRepository }),
     description: typeof record.description === 'string' ? record.description : '',
   }
 }
@@ -179,6 +196,8 @@ export function readInstalledThirdPartyPlugins(profileDir) {
         version: typeof info.manifest.version === 'string' ? info.manifest.version : null,
         source: sourceKind(typeof requested === 'string' ? requested : ''),
         description: typeof info.manifest.description === 'string' ? info.manifest.description : '',
+        author: packageAuthor(info.manifest),
+        upstreamRepository: githubRepositorySlug(info.manifest?.dsh?.upstreamRepository, name),
         bundle: profilePackageBundle(info.manifest),
         client: info.manifest?.dsh?.client !== undefined,
       }
@@ -192,12 +211,15 @@ export function exportThirdPartyPlugins({ profileDir, repositoryPath, profile = 
   const plugins = installed.map(plugin => {
     const specifier = portableSpecifier(plugin.name, plugin.requested, plugin.version)
     const repositoryOwner = githubRepositoryOwner(specifier)
+    const author = plugin.author ?? repositoryOwner
     return {
       name: plugin.name,
       specifier,
       version: plugin.version,
       source: sourceKind(specifier),
       ...(repositoryOwner === null ? {} : { repositoryOwner }),
+      ...(author === null ? {} : { author }),
+      ...(plugin.upstreamRepository === null ? {} : { upstreamRepository: plugin.upstreamRepository }),
       description: plugin.description,
     }
   })
@@ -229,7 +251,7 @@ function packageManagerCommand() {
   return 'pnpm'
 }
 
-/** Install the manifest's public plugins and remove stale public plugins. */
+/** Install the manifest's plugins and remove stale profile plugins. */
 export async function syncThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn }) {
   const safeProfile = profileName(profile)
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
@@ -241,18 +263,18 @@ export async function syncThirdPartyPlugins({ profileDir, repositoryPath, source
   for (const plugin of manifest.plugins) {
     const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--save-exact', plugin.specifier], { spawnCommand })
     commands.push({ name: plugin.name, action: 'add', ...result })
-    if (!result.ok) throw new Error(`安装公开插件 ${plugin.name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
+    if (!result.ok) throw new Error(`安装插件 ${plugin.name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   for (const name of installedNames) {
     if (desiredNames.has(name)) continue
     const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', name], { spawnCommand })
     commands.push({ name, action: 'remove', ...result })
-    if (!result.ok) throw new Error(`移除公开插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
+    if (!result.ok) throw new Error(`移除插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands }
 }
 
-/** Read the committed manifest beside the currently installed public plugins. */
+/** Read the committed manifest beside the currently installed profile plugins. */
 export function inspectThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web' }) {
   const safeProfile = profileName(profile)
   const path = manifestPath(repositoryPath)
@@ -286,5 +308,5 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   const result = mode === 'Export'
     ? exportThirdPartyPlugins({ profileDir, repositoryPath: repository, profile })
     : await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, profile })
-  console.log(`${mode === 'Export' ? 'Recorded' : 'Synchronized'} public DSH plugins: ${result.plugins.length}`)
+  console.log(`${mode === 'Export' ? 'Recorded' : 'Synchronized'} DSH plugins: ${result.plugins.length}`)
 }

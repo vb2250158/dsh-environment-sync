@@ -392,9 +392,17 @@
       "packageName": "dsh-environment-sync",
       "repository": "vb2250158/dsh-environment-sync",
       "loaderId": "environment-sync",
-      "description": "同步多台电脑的 DSH 配置，并管理本人编写的公开插件。",
-      "details": "私有仓库只保存插件清单、启停状态、配置、AGENTS.md 和加密凭据。",
+      "description": "同步多台电脑的 DSH 配置，并管理本人公开插件和标明上游的第三方私有 fork。",
+      "details": "私有环境仓库保存插件清单、启停状态、配置、AGENTS.md 和加密凭据；第三方修改版使用单独的私有 fork。",
       "changelog": [
+        {
+          "version": "0.5.0",
+          "date": "2026-08-27",
+          "changes": [
+            "插件清单分别记录原作者、仓库所有者和原始上游。",
+            "第三方修改版可通过固定提交安装私有 fork，界面明确显示原作者和上游。"
+          ]
+        },
         {
           "version": "0.4.3",
           "date": "2026-08-27",
