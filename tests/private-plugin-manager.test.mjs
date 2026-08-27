@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
@@ -13,6 +14,7 @@ import {
   readPrivatePluginStatus,
   readRepositoryConfig,
   resolvePrivatePluginProfileDir,
+  runProcess,
   validateProfileName,
   writePrivatePluginEnabled,
   writeRepositoryConfig,
@@ -97,4 +99,22 @@ test('Host Remote 只暴露配置、启停和私有环境同步操作', () => {
 test('profile 名称不能穿越 DSH home', () => {
   assert.throws(() => validateProfileName('../web'), TypeError)
   assert.equal(resolvePrivatePluginProfileDir('C:/dsh-home', 'web'), join('C:/dsh-home', 'profiles', 'web'))
+})
+
+test('子进程输出会裁剪为可显示的诊断摘要', async () => {
+  const spawnCommand = () => {
+    const child = new EventEmitter()
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    queueMicrotask(() => {
+      child.stdout.emit('data', `prefix-${'x'.repeat(1300)}`)
+      child.stderr.emit('data', '-tail')
+      child.emit('close', 0, null)
+    })
+    return child
+  }
+  const result = await runProcess('example', [], { spawnCommand })
+  assert.equal(result.ok, true)
+  assert.equal(result.output.length, 1202)
+  assert.match(result.output, /-tail\n…$/)
 })
