@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
