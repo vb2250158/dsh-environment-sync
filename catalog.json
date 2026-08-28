@@ -396,6 +396,14 @@
       "details": "私有环境仓库保存插件清单、启停状态、配置、AGENTS.md 和加密凭据；第三方修改版使用单独的私有 fork。",
       "changelog": [
         {
+          "version": "0.5.3",
+          "date": "2026-08-29",
+          "changes": [
+            "本机插件列表改从 profile 已安装依赖读取；目录只补充名称和说明。",
+            "未登记在目录中的已安装插件也会显示，避免同步后静默遗漏。"
+          ]
+        },
+        {
           "version": "0.5.2",
           "date": "2026-08-27",
           "changes": [
@@ -445,6 +453,26 @@
             "改为每个插件一个公开仓库。",
             "私有仓库只保存环境配置。",
             "同步时按固定提交安装公开插件。"
+          ]
+        }
+      ],
+      "manageable": false,
+      "author": "vb2250158"
+    },
+    {
+      "id": "chat-enhancement",
+      "name": "聊天增强",
+      "packageName": "dsh-chat-enhancement",
+      "repository": "vb2250158/dsh-chat-enhancement",
+      "description": "在聊天中预览文件，并让 Agent 主动展示图片和视频。",
+      "details": "图片、视频、Markdown 和其他受支持文件在聊天内显示缩略图；点击后打开页内预览器。",
+      "changelog": [
+        {
+          "version": "0.3.0",
+          "date": "2026-08-29",
+          "changes": [
+            "支持聊天内 Markdown 预览、图片和视频主动展示。",
+            "文件缩略图点击后使用页内预览器，不再直接调用本机编辑器。"
           ]
         }
       ],

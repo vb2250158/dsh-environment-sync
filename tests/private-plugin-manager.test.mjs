@@ -24,7 +24,8 @@ function temporaryHome() { return mkdtempSync(join(tmpdir(), 'dsh-environment-sy
 function writePackage(profileDir, name, version) {
   const directory = join(profileDir, 'node_modules', ...name.split('/'))
   mkdirSync(directory, { recursive: true })
-  writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version, dsh: { bundle: { patch: './cordis.patch.yml' } } }))
+  writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version, main: './index.js', dsh: { bundle: { patch: './cordis.patch.yml' } } }))
+  writeFileSync(join(directory, 'index.js'), '')
 }
 function profile(home) {
   const dir = join(home, 'profiles', 'web')
@@ -33,11 +34,15 @@ function profile(home) {
     dependencies: {
       [PRIVATE_PLUGIN_PACKAGE_NAME]: 'github:vb2250158/dsh-environment-sync#1111111111111111111111111111111111111111',
       'dsh-theme-blue': 'github:vb2250158/dsh-theme-blue#2222222222222222222222222222222222222222',
+      'dsh-chat-enhancement': 'github:vb2250158/dsh-chat-enhancement#3333333333333333333333333333333333333333',
+      'dsh-unlisted-client': 'github:vb2250158/dsh-unlisted-client#4444444444444444444444444444444444444444',
     },
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', PRIVATE_PLUGIN_PACKAGE_NAME, 'dsh-theme-blue'] } },
   }))
   writePackage(dir, PRIVATE_PLUGIN_PACKAGE_NAME, '0.3.0')
   writePackage(dir, 'dsh-theme-blue', '0.1.0-rc.8.6')
+  writePackage(dir, 'dsh-chat-enhancement', '0.3.0')
+  writePackage(dir, 'dsh-unlisted-client', '0.0.1')
   return dir
 }
 
@@ -68,10 +73,11 @@ test('状态从 profile 已安装包读取每个独立插件版本', () => {
     const status = readPrivatePluginStatus({ dshHome: home })
     assert.equal(status.package.name, 'dsh-environment-sync')
     assert.equal(status.package.installedVersion, '0.3.0')
-    assert.equal(status.plugins.length, 12)
+    assert.equal(status.plugins.length, 4)
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-theme-blue').localVersion, '0.1.0-rc.8.6')
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-theme-blue').author, 'vb2250158')
-    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-gpt-web-search').installed, false)
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-chat-enhancement').name, '聊天增强')
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-unlisted-client').installed, true)
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-environment-sync').manageable, false)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
