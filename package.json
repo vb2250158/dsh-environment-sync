@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -21,6 +21,7 @@
     "lib/typert.host.js",
     "scripts/private-environment-sync.mjs",
     "scripts/sync-third-party-plugins.mjs",
+    "scripts/ensure-dsh-web.ps1",
     "README.md",
     "SECURITY.md",
     "LICENSE"

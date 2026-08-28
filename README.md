@@ -41,6 +41,10 @@ pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
 4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个插件，并在 pnpm 安装后重新写入固定提交；私有 fork 需要当前电脑具备仓库读取权限；
 5. 重启 DSH。
 
+## Web 健康检查
+
+`scripts/ensure-dsh-web.ps1` 可供 Windows 计划任务调用。它只检查 `DSH_WEB_PORT`（默认 `3180`）；健康响应存在时立即退出，缺失时才以隐藏窗口启动一个 `dsh web --no-open` 进程。脚本要求 `DSH_SOURCE_ROOT` 指向官方 DSH 源码，不会写入官方代码或常驻运行。
+
 ## 私有仓库文件
 
 ```text
