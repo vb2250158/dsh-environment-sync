@@ -21,7 +21,7 @@ if ($port -lt 1 -or $port -gt 65535) {
 $dshHome = if ([string]::IsNullOrWhiteSpace($env:DSH_HOME)) { Join-Path $HOME '.dsh' } else { $env:DSH_HOME }
 $profile = if ([string]::IsNullOrWhiteSpace($env:DSH_WEB_PROFILE)) { 'web' } else { $env:DSH_WEB_PROFILE }
 $restartMarker = Join-Path $dshHome "profiles\$profile\.dsh-restart-required"
-$mutex = New-Object System.Threading.Mutex($false, "Local\\DeepSeekHarness-Web-$port")
+$mutex = New-Object System.Threading.Mutex($false, "Local\DeepSeekHarness-Web-$port")
 $lockTaken = $false
 
 try {
@@ -68,5 +68,5 @@ try {
   throw "DSH did not become healthy on port $port. See $standardErrorLog"
 } finally {
   if ($lockTaken) { $mutex.ReleaseMutex() | Out-Null }
-  $mutex.Dispose()
+  if ($null -ne $mutex) { $mutex.Dispose() }
 }
