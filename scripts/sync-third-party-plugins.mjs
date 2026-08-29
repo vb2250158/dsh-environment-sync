@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url'
 export const THIRD_PARTY_MANIFEST_FILENAME = 'plugins.json'
 export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 2
 export const PRIVATE_PLUGIN_PACKAGE_NAME = 'dsh-environment-sync'
+export const RESTART_MARKER_FILENAME = '.dsh-restart-required'
 const OFFICIAL_PACKAGE_PREFIX = '@deepseek-ai/'
 const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
 
@@ -162,6 +163,11 @@ export function manifestPath(repositoryPath) {
   return join(resolve(repositoryPath), 'config', THIRD_PARTY_MANIFEST_FILENAME)
 }
 
+/** Return the one-shot restart marker for a profile whose plugins changed. */
+export function restartMarkerPath(profileDir) {
+  return join(resolve(profileDir), RESTART_MARKER_FILENAME)
+}
+
 export function emptyThirdPartyManifest(profile = 'web') {
   return { schemaVersion: THIRD_PARTY_MANIFEST_SCHEMA_VERSION, profile: profileName(profile), plugins: [] }
 }
@@ -285,7 +291,9 @@ export async function syncThirdPartyPlugins({ profileDir, repositoryPath, source
   const lockfile = await run(packageManagerCommand(), ['--dir', profileDir, 'install', '--lockfile-only'], { spawnCommand })
   commands.push({ name: 'profile', action: 'lockfile', ...lockfile })
   if (!lockfile.ok) throw new Error(`固定插件安装来源失败：${lockfile.output || `exit ${String(lockfile.exitCode)}`}`)
-  return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands }
+  const restartMarker = restartMarkerPath(profileDir)
+  writeFileSync(restartMarker, `${JSON.stringify({ profile: safeProfile, requestedAt: new Date().toISOString() })}\n`)
+  return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
 }
 
 /** Read the committed manifest beside the currently installed profile plugins. */

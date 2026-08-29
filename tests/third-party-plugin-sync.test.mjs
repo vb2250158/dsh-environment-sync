@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { exportThirdPartyPlugins, inspectThirdPartyPlugins, readThirdPartyManifest, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
+import { exportThirdPartyPlugins, inspectThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true })
@@ -195,6 +195,10 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
     assert.equal(status.plugins[1].upstreamRepository, 'original-author/client-only-plugin')
     assert.equal(status.plugins[1].installed.client, true)
     assert.deepEqual(status.extra, [])
+    assert.equal(result.restartRequired, true)
+    const marker = JSON.parse(await readFile(restartMarkerPath(profileDir), 'utf8'))
+    assert.equal(marker.profile, 'web')
+    assert.match(marker.requestedAt, /^\d{4}-\d{2}-\d{2}T/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
