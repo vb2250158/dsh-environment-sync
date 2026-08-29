@@ -43,7 +43,7 @@ pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
 
 ## Web 健康检查
 
-`scripts/ensure-dsh-web.ps1` 可供 Windows 计划任务调用。它用端口级互斥锁避免并发启动；健康响应存在时立即退出，插件同步写入重启标记后才会停止旧实例并以隐藏窗口启动一个 `dsh web --no-open` 进程。脚本要求 `DSH_SOURCE_ROOT` 指向官方 DSH 源码，不会写入官方代码或常驻运行。
+`scripts/ensure-dsh-web.ps1` 可供 Windows 计划任务调用。它用端口级互斥锁避免并发启动；健康响应存在时立即退出，插件同步写入重启标记或发现同端口孤儿 DSH 进程后才会停止旧实例并以隐藏窗口启动一个 `dsh web --no-open` 进程。脚本要求 `DSH_SOURCE_ROOT` 指向官方 DSH 源码，不会写入官方代码或常驻运行。
 
 ## 私有仓库文件
 

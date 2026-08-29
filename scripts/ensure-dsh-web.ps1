@@ -38,6 +38,9 @@ try {
   }
 
   $listeners | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+  Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
+    Where-Object { $_.CommandLine -match 'apps/cli/src/bin\.ts.*\bweb\b' -and $_.CommandLine -match "(?:^|\\s)--port\\s+$port(?:\\s|$)" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   $stopDeadline = (Get-Date).AddSeconds(15)
   while (@(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).Count -gt 0 -and (Get-Date) -lt $stopDeadline) {
     Start-Sleep -Milliseconds 250
