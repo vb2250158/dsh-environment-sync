@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import { tmpdir } from 'node:os'
@@ -108,6 +108,26 @@ test('手工停用不会被后续配置补丁误显示为启用', () => {
     writePrivatePluginEnabled(home, 'web', 'fixture', true)
     assert.equal(privatePluginEnablement(home, 'web', 'fixture').enabled, true)
     assert.match(readFileSync(join(home, 'profiles/web/cordis.patch.yml'), 'utf8'), /config: \{\}/)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('运行摘要检测同版本磁盘代码变化并要求重启', async () => {
+  const home = temporaryHome()
+  try {
+    const dir = profile(home)
+    const installed = join(dir, 'node_modules', PRIVATE_PLUGIN_PACKAGE_NAME)
+    for (const name of ['package.json', 'lib', 'scripts']) cpSync(new URL('../' + name, import.meta.url), join(installed, name), { recursive: true })
+    const manager = new PrivatePluginManager(new Context())
+    manager.dshHome = home
+    const before = await manager.status()
+    assert.equal(before.runtime.processId, process.pid)
+    assert.equal(before.runtime.matchesInstalled, true)
+    const file = join(installed, 'lib/private-plugin-manager.js')
+    writeFileSync(file, readFileSync(file, 'utf8') + '\n')
+    const after = await manager.status()
+    assert.equal(after.runtime.version, before.runtime.version)
+    assert.equal(after.runtime.matchesInstalled, false)
+    assert.equal(after.restartRequired, true)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
