@@ -15,6 +15,8 @@ DSH 插件管理与多电脑环境同步插件。
 
 ## 安装
 
+当前发布为 **v0.5.9**；变更与未实现范围见 [CHANGELOG.md](CHANGELOG.md)。
+
 锁定提交后，通过 DSH 官方入口安装管理插件：
 
 ```powershell
@@ -27,10 +29,10 @@ pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
 
 ### 上传当前电脑
 
-“上传当前环境”会：
+“上传改动”会：
 
 1. 记录 profile 中每个 DSH bundle 或 Web client 插件的精确安装来源、原作者、仓库所有者、原始上游与版本；
-2. 导出 `settings.yaml`、profile/home patch 和 `AGENTS.md`；
+2. 导出 settings（剔除 `private-sync.local.yaml` 所拥有的字段）、profile/home patch 和 `AGENTS.md`；
 3. 使用 AES-256-GCM 与 scrypt 加密凭据；
 4. 提交并推送私有配置仓库。
 
@@ -38,9 +40,19 @@ pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
 
 1. 安装 `dsh-environment-sync`；
 2. 配置并克隆私有仓库；
-3. 点击“下载配置并拉取插件”；
+3. 点击“拉取并应用”；
 4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个插件，并在 pnpm 安装后重新写入固定提交；私有 fork 需要当前电脑具备仓库读取权限；
 5. 重启 DSH。
+
+## 同步失败与配置保护
+
+“检查更新”仅获取远端引用，不安装插件或应用配置。“上传改动”包含插件清单导出，“拉取并应用”包含按清单安装，不需要额外执行记录或安装按钮。
+
+安装入口拒绝缺失清单；状态页仍可展示尚未建立清单的仓库。相同精确来源和版本不重复安装。安装命令显式使用目标 profile 所属的 DSH Home。
+
+配置恢复先读取和校验全部文件、解密凭据，再安装插件，最后应用配置。缺失同步密钥不会自动生成替代密钥。快照声明未包含凭据或可选文件时，不恢复残留文件，也不删除目标机器独有文件。配置写入失败会尝试恢复本次已写入的文件；这不构成跨进程崩溃恢复或插件安装的整体回滚。
+
+本机覆盖中的字段从导出快照中剔除；尚未声明为本机字段的配置仍会导出。部署前必须完成各插件字段归属整理。
 
 ## Web 健康检查
 

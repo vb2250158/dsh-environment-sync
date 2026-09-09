@@ -217,8 +217,8 @@ export function readInstalledThirdPartyPlugins(profileDir) {
     .filter(value => value !== null)
 }
 
-/** Export exact portable public plugin records from the active profile. */
-export function exportThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web' }) {
+/** Validate installed sources and build a portable manifest without writing files. */
+export function prepareThirdPartyPlugins({ profileDir, profile = 'web' }) {
   const installed = readInstalledThirdPartyPlugins(profileDir)
   const plugins = installed.map(plugin => {
     const specifier = portableSpecifier(plugin.name, plugin.requested, plugin.version)
@@ -235,15 +235,20 @@ export function exportThirdPartyPlugins({ profileDir, repositoryPath, profile = 
       description: plugin.description,
     }
   })
-  const path = manifestPath(repositoryPath)
-  const manifest = { schemaVersion: THIRD_PARTY_MANIFEST_SCHEMA_VERSION, profile: profileName(profile), plugins }
+  return { schemaVersion: THIRD_PARTY_MANIFEST_SCHEMA_VERSION, profile: profileName(profile), plugins }
+}
+
+/** Export the validated installed plugin manifest. */
+export function exportThirdPartyPlugins(options) {
+  const manifest = prepareThirdPartyPlugins(options)
+  const path = manifestPath(options.repositoryPath)
   writeJsonAtomically(path, manifest)
   return { manifestPath: path, ...manifest }
 }
 
-function run(command, args, { cwd, spawnCommand = spawn } = {}) {
+function run(command, args, { cwd, env = process.env, spawnCommand = spawn } = {}) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawnCommand(command, args, { cwd, shell: process.platform === 'win32', windowsHide: true })
+    const child = spawnCommand(command, args, { cwd, env, shell: process.platform === 'win32', windowsHide: true })
     let output = ''
     child.stdout?.on('data', chunk => { output += chunk.toString() })
     child.stderr?.on('data', chunk => { output += chunk.toString() })
@@ -276,20 +281,30 @@ function restoreExactDependencySpecifiers(profileDir, plugins) {
 /** Install the manifest's plugins and remove stale profile plugins. */
 export async function syncThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn }) {
   const safeProfile = profileName(profile)
+  if (!existsSync(manifestPath(repositoryPath))) throw new Error('Plugin manifest is missing; no plugins were changed')
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
   const installed = readInstalledThirdPartyPlugins(profileDir)
   const installedNames = new Set(installed.map(plugin => plugin.name))
   const desiredNames = new Set(manifest.plugins.map(plugin => plugin.name))
+  const changed = manifest.plugins.filter(plugin => {
+    const current = installed.find(item => item.name === plugin.name)
+    return current === undefined || current.version !== plugin.version || current.requested !== (sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version)
+  })
+  const removed = [...installedNames].filter(name => !desiredNames.has(name))
+  if (changed.length === 0 && removed.length === 0) {
+    return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: installed, commands: [], restartRequired: existsSync(restartMarkerPath(profileDir)) }
+  }
   const dshSourceRoot = resolveSourceRoot(sourceRoot)
+  const env = { ...process.env, DSH_HOME: dirname(dirname(resolve(profileDir))) }
   const commands = []
-  for (const plugin of manifest.plugins) {
-    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--save-exact', plugin.specifier], { spawnCommand })
+  for (const plugin of changed) {
+    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--save-exact', plugin.specifier], { spawnCommand, env })
     commands.push({ name: plugin.name, action: 'add', ...result })
     if (!result.ok) throw new Error(`安装插件 ${plugin.name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   for (const name of installedNames) {
     if (desiredNames.has(name)) continue
-    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', name], { spawnCommand })
+    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', name], { spawnCommand, env })
     commands.push({ name, action: 'remove', ...result })
     if (!result.ok) throw new Error(`移除插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }

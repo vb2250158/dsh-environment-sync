@@ -11,6 +11,17 @@ async function writeJson(path, value) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
 }
 
+test('缺失同步清单时不启动安装或卸载命令', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-missing-manifest-'))
+  let invoked = false
+  try {
+    await assert.rejects(syncThirdPartyPlugins({ profileDir: join(root, 'profile'), repositoryPath: root, spawnCommand() { invoked = true } }), /manifest is missing/)
+    assert.equal(invoked, false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 async function writePlugin(profileDir, name, version, { bundle = true, client = false, description = undefined, author = undefined, upstreamRepository = undefined } = {}) {
   const directory = join(profileDir, 'node_modules', ...name.split('/'))
   await mkdir(directory, { recursive: true })
@@ -218,6 +229,10 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
     const marker = JSON.parse(await readFile(restartMarkerPath(profileDir), 'utf8'))
     assert.equal(marker.profile, 'web')
     assert.match(marker.requestedAt, /^\d{4}-\d{2}-\d{2}T/)
+    assert.ok(calls.filter(call => call.args.includes('dsh')).every(call => call.options.env.DSH_HOME === join(root, 'dsh-home')))
+    const secondCalls = []
+    await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, spawnCommand: fakePnpm(profileDir, secondCalls) })
+    assert.deepEqual(secondCalls, [])
   } finally {
     await rm(root, { recursive: true, force: true })
   }

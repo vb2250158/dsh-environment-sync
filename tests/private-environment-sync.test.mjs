@@ -84,9 +84,64 @@ test('凭据密文需要同一个同步密钥', () => {
   assert.throws(() => decryptCredentials(payload, 'wrong'))
 })
 
+test('错误密钥不会覆盖已有设置或提示词', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-preflight-'))
+  const source = join(root, 'source')
+  const target = join(root, 'target')
+  const data = join(root, 'data')
+  try {
+    await write(join(source, 'settings.yaml'), 'plugin: remote\n')
+    await write(join(source, 'AGENTS.md'), 'remote instructions\n')
+    await write(join(source, '.credentials.yaml'), 'credential: synthetic\n')
+    await write(join(source, 'profiles', 'web', 'package.json'), '{}')
+    await exportPrivateEnvironment({ dshHomePath: source, dataRootPath: data, encryptionSecret: 'correct' })
+    await write(join(target, 'settings.yaml'), 'plugin: local\n')
+    await write(join(target, 'AGENTS.md'), 'local instructions\n')
+    await assert.rejects(importPrivateEnvironment({ dshHomePath: target, dataRootPath: data, encryptionSecret: 'wrong' }))
+    assert.equal(await readFile(join(target, 'settings.yaml'), 'utf8'), 'plugin: local\n')
+    assert.equal(await readFile(join(target, 'AGENTS.md'), 'utf8'), 'local instructions\n')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('未包含凭据的快照不会恢复残留密文', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-stale-credentials-'))
+  const source = join(root, 'source')
+  const target = join(root, 'target')
+  const data = join(root, 'data')
+  try {
+    await write(join(source, 'settings.yaml'), 'plugin: remote\n')
+    await write(join(source, 'profiles', 'web', 'package.json'), '{}')
+    await exportPrivateEnvironment({ dshHomePath: source, dataRootPath: data })
+    await write(join(data, 'credentials.enc.json'), JSON.stringify(encryptCredentials('credential: old\n', 'key')))
+    const result = await importPrivateEnvironment({ dshHomePath: target, dataRootPath: data })
+    assert.equal(result.imported.credentials, false)
+    await assert.rejects(readFile(join(target, '.credentials.yaml')), { code: 'ENOENT' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('私有数据目录不能位于公开插件仓库内', () => {
   assert.throws(() => resolvePrivateDataRoot(join(process.cwd(), 'config', 'private-data')), /outside the public plugin repository/)
   const external = join(tmpdir(), 'dsh-private-data')
   assert.equal(resolvePrivateDataRoot(external), external)
   assert.equal(privateEnvironmentPaths(external, 'web').thirdParty, join(external, 'config', 'plugins.json'))
+})
+
+test('本机覆盖字段不会再次进入共享快照', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-overlay-export-'))
+  const home = join(root, 'home')
+  const data = join(root, 'data')
+  try {
+    await write(join(home, 'settings.yaml'), 'plugin:\n  path: D:/local\n  enabled: true\n')
+    await write(join(home, 'private-sync.local.yaml'), 'plugin:\n  path: D:/local\n')
+    await write(join(home, 'profiles', 'web', 'package.json'), '{}')
+    await exportPrivateEnvironment({ dshHomePath: home, dataRootPath: data })
+    assert.deepEqual(parse(await readFile(join(data, 'settings.yaml'), 'utf8')), { plugin: { enabled: true } })
+    assert.equal(await readFile(join(home, 'settings.yaml'), 'utf8'), 'plugin:\n  path: D:/local\n  enabled: true\n')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })

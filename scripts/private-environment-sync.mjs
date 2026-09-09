@@ -1,7 +1,7 @@
 /** Synchronize one DSH environment through a separate private data directory. */
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
@@ -91,11 +91,26 @@ function deepMerge(base, overlay) {
   return result
 }
 
-function encryptionKey(dshHomePath, supplied) {
+/** Remove machine-owned overlay fields from effective settings before export. */
+function sharedSettings(settings, overlay) {
+  const result = structuredClone(settings)
+  for (const [key, value] of Object.entries(overlay)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && result[key] !== null && typeof result[key] === 'object' && !Array.isArray(result[key])) {
+      result[key] = sharedSettings(result[key], value)
+      if (Object.keys(result[key]).length === 0) delete result[key]
+    } else {
+      delete result[key]
+    }
+  }
+  return result
+}
+
+function encryptionKey(dshHomePath, supplied, create = true) {
   if (typeof supplied === 'string' && supplied !== '') return supplied
   if (typeof process.env.DSH_PRIVATE_SYNC_KEY === 'string' && process.env.DSH_PRIVATE_SYNC_KEY !== '') return process.env.DSH_PRIVATE_SYNC_KEY
   const path = join(resolve(dshHomePath), PRIVATE_SYNC_KEY_FILENAME)
   if (existsSync(path)) return readFileSyncText(path).trim()
+  if (!create) throw new Error('Private sync key is missing; restore the key before importing')
   const generated = randomBytes(32).toString('base64url')
   writeFileSync(path, `${generated}\n`, { encoding: 'utf8', mode: 0o600 })
   return generated
@@ -148,11 +163,14 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const paths = privateEnvironmentPaths(dataRootPath, safeProfile)
   const profileDir = join(dshHome, 'profiles', safeProfile)
   const settingsSource = await readText(join(dshHome, 'settings.yaml'), true)
-  parseMapping(settingsSource, 'DSH settings')
+  const effectiveSettings = parseMapping(settingsSource, 'DSH settings')
+  const overlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
+  const overlay = overlaySource === '' ? {} : parseMapping(overlaySource, 'Machine-local DSH settings overlay')
+  const portableSettings = sharedSettings(effectiveSettings, overlay)
   const profileManifest = JSON.parse(await readText(join(profileDir, 'package.json'), true))
   const inventory = profileInventory(profileManifest)
 
-  await writeAtomic(paths.settings, settingsSource)
+  await writeAtomic(paths.settings, stringify(portableSettings))
   const included = {
     instructions: await copyOptional(join(dshHome, 'AGENTS.md'), paths.instructions),
     homePatch: await copyOptional(join(dshHome, 'cordis.patch.yml'), paths.homePatch),
@@ -178,15 +196,15 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
     profile: safeProfile,
     bundles: inventory.bundles,
     dependencies: inventory.dependencies,
-    settingsNamespaces: Object.keys(parseMapping(settingsSource, 'DSH settings')).sort(),
+    settingsNamespaces: Object.keys(portableSettings).sort(),
     included: { settings: true, credentials, ...included },
   }
   await writeAtomic(paths.manifest, `${JSON.stringify(manifest, null, 2)}\n`)
   return { action: 'exported', paths, manifest }
 }
 
-/** Import complete DSH configuration and then apply an optional machine-local settings overlay. */
-export async function importPrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret } = {}) {
+/** Validate all incoming files and decrypt credentials without changing the DSH home. */
+export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret } = {}) {
   const dshHome = resolve(dshHomePath || join(homedir(), '.dsh'))
   const safeProfile = requireProfile(profile)
   const paths = privateEnvironmentPaths(dataRootPath, safeProfile)
@@ -199,22 +217,64 @@ export async function importPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const snapshotSettings = parseMapping(await readText(paths.settings, true), 'Private DSH settings')
   const localOverlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
   const localOverlay = localOverlaySource === '' ? {} : parseMapping(localOverlaySource, 'Machine-local DSH settings overlay')
-  await writeAtomic(join(dshHome, 'settings.yaml'), stringify(deepMerge(snapshotSettings, localOverlay)))
-
-  const imported = {
-    instructions: await copyOptional(paths.instructions, join(dshHome, 'AGENTS.md')),
-    homePatch: await copyOptional(paths.homePatch, join(dshHome, 'cordis.patch.yml')),
-    profilePatch: await copyOptional(paths.profilePatch, join(profileDir, 'cordis.patch.yml')),
+  const writes = [{ path: join(dshHome, 'settings.yaml'), contents: stringify(deepMerge(snapshotSettings, localOverlay)) }]
+  const imported = {}
+  for (const [key, target] of Object.entries({ instructions: join(dshHome, 'AGENTS.md'), homePatch: join(dshHome, 'cordis.patch.yml'), profilePatch: join(profileDir, 'cordis.patch.yml') })) {
+    if (typeof manifest.included?.[key] !== 'boolean') throw new TypeError(`Private environment inclusion flag is missing: ${key}`)
+    imported[key] = manifest.included[key]
+    if (!imported[key]) continue
+    const contents = await readText(paths[key], true)
+    if (key !== 'instructions') {
+      const document = parseDocument(contents)
+      if (document.errors.length > 0) throw new Error(`Invalid ${key}: ${document.errors[0].message}`)
+    }
+    writes.push({ path: target, contents })
   }
-
   let credentials = false
-  if (existsSync(paths.credentials)) {
+  if (typeof manifest.included?.credentials !== 'boolean') throw new TypeError('Private environment credentials inclusion flag is missing')
+  if (manifest.included.credentials) {
     const payload = JSON.parse(await readText(paths.credentials, true))
-    const secret = encryptionKey(dshHome, encryptionSecret)
-    await writeAtomic(join(dshHome, '.credentials.yaml'), decryptCredentials(payload, secret), 0o600)
+    const secret = encryptionKey(dshHome, encryptionSecret, false)
+    const contents = decryptCredentials(payload, secret)
+    parseMapping(contents, 'Private credentials')
+    writes.push({ path: join(dshHome, '.credentials.yaml'), contents, mode: 0o600 })
     credentials = true
   }
-  return { action: 'imported', paths, manifest, imported: { settings: true, credentials, ...imported } }
+  return { paths, manifest, writes, imported: { settings: true, credentials, ...imported } }
+}
+
+/** Import only after every incoming file and credential has passed validation. */
+export async function importPrivateEnvironment(options = {}) {
+  const prepared = await preparePrivateEnvironment(options)
+  const previous = await Promise.all(prepared.writes.map(async entry => {
+    try {
+      return { ...entry, contents: await readFile(entry.path, 'utf8') }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error
+      return { ...entry, contents: null }
+    }
+  }))
+  const applied = []
+  try {
+    for (let index = 0; index < prepared.writes.length; index++) {
+      const entry = prepared.writes[index]
+      await writeAtomic(entry.path, entry.contents, entry.mode)
+      applied.push(previous[index])
+    }
+  } catch (error) {
+    const failures = [error]
+    for (const entry of applied.reverse()) {
+      try {
+        if (entry.contents === null) await rm(entry.path, { force: true })
+        else await writeAtomic(entry.path, entry.contents, entry.mode)
+      } catch (restoreError) {
+        failures.push(restoreError)
+      }
+    }
+    if (failures.length > 1) throw new AggregateError(failures, 'Configuration import failed and rollback is incomplete')
+    throw error
+  }
+  return { action: 'imported', paths: prepared.paths, manifest: prepared.manifest, imported: prepared.imported }
 }
 
 /** Export or import a private DSH environment. */

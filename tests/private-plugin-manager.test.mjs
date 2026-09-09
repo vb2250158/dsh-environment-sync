@@ -98,7 +98,7 @@ test('启停状态只写 profile 管理区块', () => {
 test('Host Remote 只暴露配置、启停和私有环境同步操作', () => {
   const manager = new PrivatePluginManager(new Context())
   assert.deepEqual(remoteMethods(manager).map(item => item.method), [
-    'status', 'configure', 'setEnabled', 'cloneData', 'publishData', 'syncData', 'recordThirdParty', 'syncThirdParty',
+    'status', 'configure', 'setEnabled', 'cloneData', 'fetchData', 'publishData', 'syncData', 'recordThirdParty', 'syncThirdParty',
   ])
 })
 
