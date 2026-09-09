@@ -23,6 +23,28 @@ $profile = if ([string]::IsNullOrWhiteSpace($env:DSH_WEB_PROFILE)) { 'web' } els
 $restartMarker = Join-Path $dshHome "profiles\$profile\.dsh-restart-required"
 $mutex = New-Object System.Threading.Mutex($false, "Local\DeepSeekHarness-Web-$port")
 $lockTaken = $false
+$standardOutputLog = Join-Path $dshHome 'logs\web-host.stdout.log'
+
+function Test-DshWebHealth {
+  $probeUri = "http://127.0.0.1:$port/"
+  if (Test-Path -LiteralPath $standardOutputLog -PathType Leaf) {
+    $launch = Get-Content -LiteralPath $standardOutputLog -Tail 20 |
+      Select-String -Pattern 'dsh web: (http://127\.0\.0\.1:[0-9]+/\?token=[A-Za-z0-9_-]+)' |
+      Select-Object -Last 1
+    if ($null -ne $launch) {
+      $candidate = [Uri]$launch.Matches[0].Groups[1].Value
+      if ($candidate.Port -eq $port) { $probeUri = $candidate.AbsoluteUri }
+    }
+  }
+  try {
+    $probeSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    $response = Invoke-WebRequest -Uri $probeUri -WebSession $probeSession -UseBasicParsing -TimeoutSec 5
+    return $response.StatusCode -ge 200 -and $response.StatusCode -lt 400
+  } catch {
+    # A failed HTTP probe is unhealthy; startup retries until its deadline.
+    return $false
+  }
+}
 
 try {
   $lockTaken = $mutex.WaitOne([TimeSpan]::FromSeconds(2))
@@ -31,10 +53,7 @@ try {
   $restartRequired = $Restart -or (Test-Path -LiteralPath $restartMarker -PathType Leaf)
   $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
   if ($listeners.Count -gt 0 -and -not $restartRequired) {
-    try {
-      $response = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 5
-      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) { exit 0 }
-    } catch {}
+    if (Test-DshWebHealth) { exit 0 }
   }
 
   $listeners | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
@@ -59,13 +78,10 @@ try {
   $startDeadline = (Get-Date).AddSeconds(45)
   do {
     if ($process.HasExited) { throw "DSH exited during startup. See $standardErrorLog" }
-    try {
-      $response = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 3
-      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
-        Remove-Item -LiteralPath $restartMarker -Force -ErrorAction SilentlyContinue
-        exit 0
-      }
-    } catch {}
+    if (Test-DshWebHealth) {
+      Remove-Item -LiteralPath $restartMarker -Force -ErrorAction SilentlyContinue
+      exit 0
+    }
     Start-Sleep -Seconds 1
   } while ((Get-Date) -lt $startDeadline)
   throw "DSH did not become healthy on port $port. See $standardErrorLog"

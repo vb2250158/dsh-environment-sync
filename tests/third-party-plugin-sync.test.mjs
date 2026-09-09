@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { exportThirdPartyPlugins, inspectThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
+import { exportThirdPartyPlugins, inspectThirdPartyPlugins, readInstalledThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true })
@@ -81,6 +81,25 @@ function fakePnpm(profileDir, calls) {
     return child
   }
 }
+
+test('安装列表识别没有根模块入口的 bundle，并支持隐藏清单的普通入口', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-bundle-exports-'))
+  try {
+    await writeProfile(root, { 'bundle-only': '1.0.0', 'hidden-manifest': '1.0.0' })
+    for (const name of ['bundle-only', 'hidden-manifest']) {
+      await writePlugin(root, name, '1.0.0')
+      const path = join(root, 'node_modules', name, 'package.json')
+      const manifest = JSON.parse(await readFile(path, 'utf8'))
+      manifest.exports = name === 'bundle-only' ? { './package.json': './package.json' } : { '.': './index.js' }
+      await writeJson(path, manifest)
+    }
+    assert.deepEqual(readInstalledThirdPartyPlugins(root).map(plugin => plugin.name), ['bundle-only', 'hidden-manifest'])
+    await writeProfile(root, { 'missing-bundle': '1.0.0' })
+    assert.throws(() => readInstalledThirdPartyPlugins(root), /missing-bundle.*not installed/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 test('记录当前 DSH bundle 和 client 为精确版本，并排除官方和普通依赖', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-third-party-export-'))

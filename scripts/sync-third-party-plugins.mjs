@@ -108,9 +108,15 @@ function packageInfo(profileDir, name) {
   const requireFromProfile = createRequire(join(resolve(profileDir), 'package.json'))
   let entry
   try {
-    entry = requireFromProfile.resolve(name)
+    entry = requireFromProfile.resolve(`${name}/package.json`)
   } catch (error) {
-    throw new Error(`Plugin package ${name} is not installed in ${profileDir}: ${error instanceof Error ? error.message : String(error)}`)
+    if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED' && error?.code !== 'MODULE_NOT_FOUND') throw error
+    // Packages that hide their manifest must expose a module entry to locate it.
+    try {
+      entry = requireFromProfile.resolve(name)
+    } catch (entryError) {
+      throw new Error(`Plugin package ${name} is not installed in ${profileDir}: ${entryError instanceof Error ? entryError.message : String(entryError)}`)
+    }
   }
   const info = packageRootFromEntry(entry, name)
   if (info === undefined) throw new Error(`Cannot locate package.json for plugin package ${name}`)

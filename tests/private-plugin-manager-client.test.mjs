@@ -5,6 +5,7 @@ const clientBundleUrl = new URL('../lib/client.js', import.meta.url).href
 const fakeReact = {
   createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
   useCallback: value => value,
+  useRef: value => ({ current: value }),
   useEffect: () => {},
   useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
 }
@@ -74,4 +75,34 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   assert.match(source, /固定来源/)
   assert.doesNotMatch(source, /私有清单记录的公开插件/)
   assert.doesNotMatch(source, /本地源码目录|同步源码|克隆公开源码/)
+})
+
+test('预取与页面请求合并，首次等待不显示零数量或空配置', async () => {
+  const client = await loadClientBundle()
+  const { ctx, registered } = context()
+  const service = ctx.reflect.get()
+  const ready = await service.status()
+  let resolveStatus
+  let calls = 0
+  service.status = () => { calls++; return new Promise(resolve => { resolveStatus = resolve }) }
+  ctx.reflect.get = () => service
+  await client.apply(ctx)
+  const { component, options } = registered[0]
+  const actions = options.inject()
+  const first = actions.readStatus()
+  assert.equal(first, actions.readStatus())
+  assert.equal(calls, 1)
+  const pending = JSON.stringify(component(actions))
+  assert.match(pending, /正在读取配置和插件清单/)
+  assert.doesNotMatch(pending, /本机已安装插件|尚未记录插件清单|私有 GitHub 仓库/)
+  resolveStatus(ready)
+  await first
+  const loaded = JSON.stringify(component(actions))
+  assert.match(loaded, /本机已安装插件（1）/)
+  assert.match(loaded, /C:\/Private/)
+  service.status = async () => { throw new Error('offline') }
+  await assert.rejects(actions.readStatus(), /offline/)
+  assert.match(JSON.stringify(component(actions)), /本机已安装插件（1）/)
+  service.status = async () => ready
+  await actions.readStatus()
 })

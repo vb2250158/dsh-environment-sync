@@ -9,6 +9,7 @@ DSH 插件管理与多电脑环境同步插件。
 - 私有仓库只保存插件清单、固定提交、启停状态、完整配置、`AGENTS.md` 和加密凭据。
 - `config/plugins.json` 是跨电脑恢复的期望插件集；当前 profile 的直接依赖是本机已安装插件的唯一真源。管理页使用前者补充固定来源，使用后者生成“本机已安装插件”列表，未登记包也会显示，不能静默遗漏。
 - 会话、附件、日志、缓存、数据库和电脑专用覆盖不上传。
+- 安装列表支持只导出 `package.json`、没有根模块入口的 bundle；隐藏清单的包通过模块入口定位，缺失安装仍报错。
 - `$DSH_HOME/private-sync.local.yaml` 保存当前电脑的路径等覆盖。
 - `$DSH_HOME/private-sync.key` 只在电脑之间手工安全传递，不进入 Git。
 
@@ -68,3 +69,11 @@ pnpm pack --dry-run
 ## 许可证
 
 MIT
+
+## Authenticated Web health checks
+
+The Windows health task reads the current launch URL from its local stdout log and uses a cookie session to probe the authenticated root page. Tokens remain in local runtime logs and are not copied into configuration or health-check output.
+
+## Plugin page loading
+
+The client prefetches status after its Remote mounts and shares an in-flight read. Initial loading does not imply an empty plugin list. Reopening shows the last successful snapshot while refreshing; failures retain that snapshot and allow retry. Background reads preserve unsaved repository fields.
