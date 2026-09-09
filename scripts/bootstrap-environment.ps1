@@ -59,5 +59,16 @@ $template = $template.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__
 [IO.File]::WriteAllText($recoveryScript, $template + "`n")
 $command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $recoveryScript + '"'
 [IO.File]::WriteAllText((Join-Path $DshHome 'Recover DSH.vbs'), 'CreateObject("WScript.Shell").Run "' + $command.Replace('"','""') + '", 0, False' + "`n")
+$startScript = Join-Path $DshHome 'start-dsh.ps1'
+$startTemplate = @'
+$ErrorActionPreference = 'Stop'
+$env:DSH_HOME = '__HOME__'
+$env:DSH_SOURCE_ROOT = '__SOURCE__'
+& '__PLUGIN__/scripts/ensure-dsh-web.ps1'
+'@
+$startTemplate = $startTemplate.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__SOURCE__',$SourceRoot.Replace("'","''")).Replace('__PLUGIN__',$recoveryRoot.Replace("'","''"))
+[IO.File]::WriteAllText($startScript, $startTemplate + "`n")
+$startCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $startScript + '"'
+[IO.File]::WriteAllText((Join-Path $DshHome 'Start DSH.vbs'), 'CreateObject("WScript.Shell").Run "' + $startCommand.Replace('"','""') + '", 0, False' + "`n")
 & (Join-Path $PSScriptRoot 'ensure-dsh-web.ps1') -Restart
 Write-Output 'Open Settings > My plugins, enter the sync key securely, then Pull and apply. Daily synchronization is available in that page.'

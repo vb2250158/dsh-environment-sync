@@ -6,7 +6,7 @@
 
 使用已安装并构建的 Windows DSH 源码环境，设置 `DSH_SOURCE_ROOT`。当前兼容检查使用 DSH `0.1.3-alpha.1` 源码接口（上游提交 `d347e703908d0406b7a7ef80e3a0e594d86b2215`）。本插件不更新或覆盖 DSH 源码。
 
-克隆本插件的 `v0.6.0` 发布标签并记录其完整提交，在 PowerShell 执行：
+克隆本插件的 `v0.6.1` 发布标签并记录其完整提交，在 PowerShell 执行：
 
 ```powershell
 ./scripts/bootstrap-environment.ps1 -SourceRoot <DSH源码目录> -Repository https://github.com/<owner>/<private-environment>.git
@@ -15,6 +15,8 @@
 Git 必须已获得私有仓库读取权限。首次进入“设置 → 我的插件”，填写与原电脑相同的同步密钥，然后点击“拉取并应用”。密钥只保存在本机 `private-sync.key`，通过仓库之外的安全渠道传递。安装目录中的恢复运行时须保留；本机 `Recover DSH.vbs` 提供不依赖 DSH 页面启动的恢复窗口。
 
 ## 日常操作
+
+重启电脑后可双击 DSH Home 中的 `Start DSH.vbs` 启动服务，再打开本机 DSH 页面。启动器保存本机源码与 Home 路径，不依赖旧聚合包环境变量；需要自动启动时可将该入口的快捷方式放入 Windows 启动目录。
 
 - **检查更新**：只获取远端引用。
 - **上传改动**：自动记录插件新增、删除、版本和共享配置；先保存本机修改，再合并远端并上传。
