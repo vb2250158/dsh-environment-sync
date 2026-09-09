@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.5.9",
+  "version": "0.6.0-rc.1",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -18,10 +18,14 @@
     "lib/index.js",
     "lib/invariant.js",
     "lib/private-plugin-manager.js",
+    "lib/environment-workflow.js",
+    "lib/environment-apply.js",
     "lib/typert.host.js",
     "scripts/private-environment-sync.mjs",
     "scripts/sync-third-party-plugins.mjs",
     "scripts/ensure-dsh-web.ps1",
+    "scripts/bootstrap-environment.ps1",
+    "scripts/recover-environment.mjs",
     "README.md",
     "SECURITY.md",
     "LICENSE",
@@ -45,14 +49,15 @@
     }
   },
   "scripts": {
-    "test": "node --test tests/private-plugin-manager.test.mjs tests/private-plugin-manager-client.test.mjs tests/private-plugin-manager-typert.test.mjs tests/private-environment-sync.test.mjs tests/third-party-plugin-sync.test.mjs",
-    "check": "node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/environment-workflow.js && node --check lib/environment-apply.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.8",
     "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.8",
     "@deepseek-ai/schemastery": "^3.18.1",
+    "proper-lockfile": "4.1.2",
     "yaml": "^2.9.0",
     "zod": "4.4.3"
   },

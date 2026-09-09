@@ -43,7 +43,7 @@ function context() {
   const response = async () => ({ ok: true, value: status })
   const ctx = {
     remote: { $mount: async value => { mounted.push(value); return () => {} } },
-    reflect: { get: () => ({ status: response, configure: response, setEnabled: response, cloneData: response, fetchData: response, publishData: response, syncData: response, recordThirdParty: response, syncThirdParty: response }) },
+    reflect: { get: () => ({ status: response, configure: response, setEnabled: response, cloneData: response, fetchData: response, publishData: response, syncData: response, resolveConflict: response, setSyncKey: response, changePlugin: response, restoreEnvironment: response, restartEnvironment: response, recordThirdParty: response, syncThirdParty: response }) },
     slots: {
       inject: (_name, callback) => callback(),
       register: (options, component) => { registered.push({ options, component }); return () => {} },
@@ -57,7 +57,7 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   const { ctx, mounted, registered } = context()
   await client.apply(ctx)
   assert.equal(mounted[0].package, 'dsh-environment-sync')
-  assert.deepEqual(mounted[0].descriptors.map(item => item.method), ['status', 'configure', 'setEnabled', 'cloneData', 'fetchData', 'publishData', 'syncData', 'recordThirdParty', 'syncThirdParty'])
+  assert.deepEqual(mounted[0].descriptors.map(item => item.method), ['status', 'configure', 'setEnabled', 'cloneData', 'fetchData', 'publishData', 'syncData', 'resolveConflict', 'setSyncKey', 'changePlugin', 'restoreEnvironment', 'restartEnvironment', 'recordThirdParty', 'syncThirdParty'])
   const configure = mounted[0].descriptors.find(item => item.method === 'configure')
   assert.deepEqual(configure.parameters[0].codec.schema.parse({ dataRemoteUrl: 'x', dataLocalPath: 'y' }), { dataRemoteUrl: 'x', dataLocalPath: 'y' })
   assert.throws(() => configure.parameters[0].codec.schema.parse({ remoteUrl: 'x', localPath: 'y' }), /private data repository/)

@@ -8,11 +8,27 @@ import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseDocument, stringify } from 'yaml'
 
-export const PRIVATE_ENVIRONMENT_SCHEMA_VERSION = 1
+export const PRIVATE_ENVIRONMENT_SCHEMA_VERSION = 2
 export const PRIVATE_SYNC_KEY_FILENAME = 'private-sync.key'
 export const PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME = 'private-sync.local.yaml'
 const PACKAGE_ROOT = resolve(fileURLToPath(new URL('../', import.meta.url)))
 const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
+const CREDENTIAL_FILES = ['.credentials.yaml', 'plugins/subscriptions/auth.json']
+const MACHINE_SETTINGS = {
+  'nas-workspace-support': null,
+  'emotional-role-workbench': null,
+  'emotional-chat-workbench': null,
+  'rabi-default-persona': { managerBaseUrl: null },
+}
+
+function pickMachineSettings(settings, mask = MACHINE_SETTINGS) {
+  const result = {}
+  for (const [key, value] of Object.entries(mask)) {
+    if (!Object.hasOwn(settings, key)) continue
+    result[key] = value === null ? settings[key] : pickMachineSettings(settings[key] ?? {}, value)
+  }
+  return result
+}
 
 function parseMapping(source, description) {
   const document = parseDocument(source)
@@ -151,7 +167,7 @@ export function decryptCredentials(payload, secret) {
 function profileInventory(manifest) {
   const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : []
   const dependencies = manifest?.dependencies !== null && typeof manifest?.dependencies === 'object'
-    ? Object.entries(manifest.dependencies).map(([name, specifier]) => ({ name, specifier }))
+    ? Object.entries(manifest.dependencies).filter(([name]) => !name.startsWith('@deepseek-ai/')).map(([name, specifier]) => ({ name, specifier }))
     : []
   return { bundles, dependencies }
 }
@@ -166,9 +182,11 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const effectiveSettings = parseMapping(settingsSource, 'DSH settings')
   const overlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
   const overlay = overlaySource === '' ? {} : parseMapping(overlaySource, 'Machine-local DSH settings overlay')
-  const portableSettings = sharedSettings(effectiveSettings, overlay)
+  const portableSettings = sharedSettings(sharedSettings(effectiveSettings, MACHINE_SETTINGS), overlay)
   const profileManifest = JSON.parse(await readText(join(profileDir, 'package.json'), true))
   const inventory = profileInventory(profileManifest)
+  const previousManifestSource = await readText(paths.manifest)
+  const previousManifest = previousManifestSource === '' ? {} : JSON.parse(previousManifestSource)
 
   await writeAtomic(paths.settings, stringify(portableSettings))
   const included = {
@@ -176,8 +194,16 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
     homePatch: await copyOptional(join(dshHome, 'cordis.patch.yml'), paths.homePatch),
     profilePatch: await copyOptional(join(profileDir, 'cordis.patch.yml'), paths.profilePatch),
   }
+  const deleted = Object.keys(included).filter(key => !included[key] && (previousManifest.included?.[key] === true || previousManifest.deleted?.includes(key)))
+  for (const key of deleted) await rm(paths[key], { force: true })
+  if (included.profilePatch) {
+    const patch = parseDocument(await readText(paths.profilePatch, true)).toJS()
+    if (!Array.isArray(patch)) throw new Error('Profile patch must be an array')
+    await writeAtomic(paths.profilePatch, stringify(patch.filter(entry => entry?.id !== 'webserver')))
+  }
 
-  const credentialsSource = await readText(join(dshHome, '.credentials.yaml'))
+  const credentialFiles = Object.fromEntries(await Promise.all(CREDENTIAL_FILES.map(async path => [path, (await readText(join(dshHome, path))) || null])))
+  const credentialsSource = JSON.stringify({ schemaVersion: 1, files: credentialFiles })
   let credentials = false
   if (credentialsSource !== '') {
     const secret = encryptionKey(dshHome, encryptionSecret)
@@ -193,6 +219,8 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
 
   const manifest = {
     schemaVersion: PRIVATE_ENVIRONMENT_SCHEMA_VERSION,
+    credentialsFormat: 'files-v1',
+    deleted,
     profile: safeProfile,
     bundles: inventory.bundles,
     dependencies: inventory.dependencies,
@@ -210,23 +238,35 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
   const paths = privateEnvironmentPaths(dataRootPath, safeProfile)
   const profileDir = join(dshHome, 'profiles', safeProfile)
   const manifest = JSON.parse(await readText(paths.manifest, true))
-  if (manifest.schemaVersion !== PRIVATE_ENVIRONMENT_SCHEMA_VERSION || manifest.profile !== safeProfile) {
+  if (![1, PRIVATE_ENVIRONMENT_SCHEMA_VERSION].includes(manifest.schemaVersion) || manifest.profile !== safeProfile) {
     throw new TypeError('Private environment manifest does not match the requested profile')
   }
 
   const snapshotSettings = parseMapping(await readText(paths.settings, true), 'Private DSH settings')
+  const currentSource = await readText(join(dshHome, 'settings.yaml'))
+  const currentSettings = currentSource === '' ? {} : parseMapping(currentSource, 'Current DSH settings')
   const localOverlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
-  const localOverlay = localOverlaySource === '' ? {} : parseMapping(localOverlaySource, 'Machine-local DSH settings overlay')
-  const writes = [{ path: join(dshHome, 'settings.yaml'), contents: stringify(deepMerge(snapshotSettings, localOverlay)) }]
+  const localOverlay = deepMerge(pickMachineSettings(currentSettings), localOverlaySource === '' ? {} : parseMapping(localOverlaySource, 'Machine-local DSH settings overlay'))
+  const writes = [{ path: join(dshHome, 'settings.yaml'), contents: stringify(deepMerge(sharedSettings(snapshotSettings, MACHINE_SETTINGS), localOverlay)) }]
   const imported = {}
   for (const [key, target] of Object.entries({ instructions: join(dshHome, 'AGENTS.md'), homePatch: join(dshHome, 'cordis.patch.yml'), profilePatch: join(profileDir, 'cordis.patch.yml') })) {
     if (typeof manifest.included?.[key] !== 'boolean') throw new TypeError(`Private environment inclusion flag is missing: ${key}`)
     imported[key] = manifest.included[key]
-    if (!imported[key]) continue
-    const contents = await readText(paths[key], true)
+    if (!imported[key]) {
+      if (manifest.deleted?.includes(key)) writes.push({ path: target, contents: null })
+      continue
+    }
+    let contents = await readText(paths[key], true)
     if (key !== 'instructions') {
       const document = parseDocument(contents)
       if (document.errors.length > 0) throw new Error(`Invalid ${key}: ${document.errors[0].message}`)
+    }
+    if (key === 'profilePatch') {
+      const current = await readText(target)
+      const local = current === '' ? [] : parseDocument(current).toJS()
+      const incoming = parseDocument(contents).toJS()
+      if (!Array.isArray(incoming) || !Array.isArray(local)) throw new Error('Profile patches must be arrays')
+      contents = stringify([...incoming.filter(entry => entry?.id !== 'webserver'), ...local.filter(entry => entry?.id === 'webserver')])
     }
     writes.push({ path: target, contents })
   }
@@ -236,8 +276,22 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
     const payload = JSON.parse(await readText(paths.credentials, true))
     const secret = encryptionKey(dshHome, encryptionSecret, false)
     const contents = decryptCredentials(payload, secret)
-    parseMapping(contents, 'Private credentials')
-    writes.push({ path: join(dshHome, '.credentials.yaml'), contents, mode: 0o600 })
+    if (manifest.credentialsFormat === 'files-v1') {
+      const envelope = JSON.parse(contents)
+      if (envelope.schemaVersion !== 1 || envelope.files === null || typeof envelope.files !== 'object' || Object.keys(envelope.files).some(path => !CREDENTIAL_FILES.includes(path))) throw new Error('Invalid encrypted credential file list')
+      for (const path of CREDENTIAL_FILES) {
+        const value = envelope.files[path]
+        if (value !== null && typeof value !== 'string') throw new Error(`Missing credential file state: ${path}`)
+        if (value !== null) {
+          if (path.endsWith('.yaml')) parseMapping(value, 'Private credentials')
+          else JSON.parse(value)
+        }
+        writes.push({ path: join(dshHome, path), contents: value, mode: 0o600 })
+      }
+    } else if (manifest.credentialsFormat === undefined) {
+      parseMapping(contents, 'Private credentials')
+      writes.push({ path: join(dshHome, '.credentials.yaml'), contents, mode: 0o600 })
+    } else throw new Error('Unsupported credential format')
     credentials = true
   }
   return { paths, manifest, writes, imported: { settings: true, credentials, ...imported } }
@@ -258,7 +312,8 @@ export async function importPrivateEnvironment(options = {}) {
   try {
     for (let index = 0; index < prepared.writes.length; index++) {
       const entry = prepared.writes[index]
-      await writeAtomic(entry.path, entry.contents, entry.mode)
+      if (entry.contents === null) await rm(entry.path, { force: true })
+      else await writeAtomic(entry.path, entry.contents, entry.mode)
       applied.push(previous[index])
     }
   } catch (error) {

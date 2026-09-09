@@ -114,6 +114,10 @@ test('未包含凭据的快照不会恢复残留密文', async () => {
     await write(join(source, 'settings.yaml'), 'plugin: remote\n')
     await write(join(source, 'profiles', 'web', 'package.json'), '{}')
     await exportPrivateEnvironment({ dshHomePath: source, dataRootPath: data })
+    const manifestPath = join(data, 'environment.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.included.credentials = false
+    await write(manifestPath, JSON.stringify(manifest))
     await write(join(data, 'credentials.enc.json'), JSON.stringify(encryptCredentials('credential: old\n', 'key')))
     const result = await importPrivateEnvironment({ dshHomePath: target, dataRootPath: data })
     assert.equal(result.imported.credentials, false)
@@ -121,6 +125,28 @@ test('未包含凭据的快照不会恢复残留密文', async () => {
   } finally {
     await rm(root, { recursive: true, force: true })
   }
+})
+
+test('订阅凭据加密恢复，删除后同步不会复活，机器资料配置保留在目标电脑', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-account-sync-'))
+  const source = join(root, 'source'), target = join(root, 'target'), data = join(root, 'data')
+  const options = { dshHomePath: source, dataRootPath: data, encryptionSecret: 'fixture-key' }
+  try {
+    await write(join(source, 'profiles', 'web', 'package.json'), '{}')
+    await write(join(source, 'settings.yaml'), 'emotional-chat-workbench:\n  libraryRoot: A:/private\n  bindings: [private-session]\nui-theme:\n  preference: blue\n')
+    await write(join(source, 'plugins', 'subscriptions', 'auth.json'), '{"codex":{"accessToken":"fixture-token"}}')
+    await write(join(target, 'settings.yaml'), 'emotional-chat-workbench:\n  libraryRoot: B:/private\n')
+    await exportPrivateEnvironment(options)
+    assert.equal((await readFile(join(data, 'credentials.enc.json'), 'utf8')).includes('fixture-token'), false)
+    assert.equal((await readFile(join(data, 'settings.yaml'), 'utf8')).includes('private-session'), false)
+    await importPrivateEnvironment({ ...options, dshHomePath: target })
+    assert.equal(JSON.parse(await readFile(join(target, 'plugins', 'subscriptions', 'auth.json'), 'utf8')).codex.accessToken, 'fixture-token')
+    assert.equal(parse(await readFile(join(target, 'settings.yaml'), 'utf8'))['emotional-chat-workbench'].libraryRoot, 'B:/private')
+    await rm(join(source, 'plugins', 'subscriptions', 'auth.json'))
+    await exportPrivateEnvironment(options)
+    await importPrivateEnvironment({ ...options, dshHomePath: target })
+    await assert.rejects(readFile(join(target, 'plugins', 'subscriptions', 'auth.json')), { code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 test('私有数据目录不能位于公开插件仓库内', () => {

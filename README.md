@@ -1,91 +1,57 @@
 # dsh-environment-sync
 
-DSH 插件管理与多电脑环境同步插件。
+通过 Git 同步整套 DSH 插件与共享配置。公开和私有插件均使用固定提交，私有环境仓库保存清单、配置和加密凭据；聊天、附件、运行日志和本机资料库不上传。
 
-## 数据分工
+## 首次安装
 
-- 每个本人插件使用独立公开 GitHub 仓库，并在目录中显示作者。
-- 第三方原版直接记录原作者仓库；第三方修改版使用私有 fork，并记录原作者、原始上游、fork 所有者和固定提交。
-- 私有仓库只保存插件清单、固定提交、启停状态、完整配置、`AGENTS.md` 和加密凭据。
-- `config/plugins.json` 是跨电脑恢复的期望插件集；当前 profile 的直接依赖是本机已安装插件的唯一真源。管理页使用前者补充固定来源，使用后者生成“本机已安装插件”列表，未登记包也会显示，不能静默遗漏。
-- 会话、附件、日志、缓存、数据库和电脑专用覆盖不上传。
-- 安装列表支持只导出 `package.json`、没有根模块入口的 bundle；隐藏清单的包通过模块入口定位，缺失安装仍报错。
-- `$DSH_HOME/private-sync.local.yaml` 保存当前电脑的路径等覆盖。
-- `$DSH_HOME/private-sync.key` 只在电脑之间手工安全传递，不进入 Git。
+使用已安装并构建的 Windows DSH 源码环境，设置 `DSH_SOURCE_ROOT`。当前兼容检查使用 DSH `0.1.3-alpha.1` 源码接口（上游提交 `d347e703908d0406b7a7ef80e3a0e594d86b2215`）。本插件不更新或覆盖 DSH 源码。
 
-## 安装
-
-当前发布为 **v0.5.9**；变更与未实现范围见 [CHANGELOG.md](CHANGELOG.md)。
-
-锁定提交后，通过 DSH 官方入口安装管理插件：
+克隆本插件的固定发布提交，在 PowerShell 执行：
 
 ```powershell
-pnpm dsh plugin --profile web add github:vb2250158/dsh-environment-sync#<commit>
+./scripts/bootstrap-environment.ps1 -SourceRoot <DSH源码目录> -Repository https://github.com/<owner>/<private-environment>.git
 ```
 
-首次使用时，在“设置 → 我的插件”填写私有配置仓库和本地目录。
+Git 必须已获得私有仓库读取权限。首次进入“设置 → 我的插件”，填写与原电脑相同的同步密钥，然后点击“拉取并应用”。密钥只保存在本机 `private-sync.key`，通过仓库之外的安全渠道传递。安装目录中的恢复运行时须保留；本机 `Recover DSH.vbs` 提供不依赖 DSH 页面启动的恢复窗口。
 
-## 同步流程
+## 日常操作
 
-### 上传当前电脑
+- **检查更新**：只获取远端引用。
+- **上传改动**：自动记录插件新增、删除、版本和共享配置；先保存本机修改，再合并远端并上传。
+- **拉取并应用 / 重试**：保存已接入电脑的本机修改，合并 Git 更新，预检固定提交和密钥，安装、升级、删除插件并应用配置。首次恢复直接使用共享环境。
+- **安装 / 更新插件**：输入 GitHub 仓库地址，自动解析固定提交。卸载保留插件用户数据；上传后其他电脑可以同步这一变化。
+- **冲突选择**：查看本机与远端文件，选择保留的完整版本。双方历史均保留；冲突解决前不覆盖运行配置。加密凭据不以明文显示。
+- **重启并加载**：结束运行中的回合后点击；安装完成不等同于旧进程已经加载新代码。
+- **恢复上次环境**：恢复配置和插件；网络造成恢复失败时保留恢复点供重试。
 
-“上传改动”会：
+管理器自身记录在共享清单中，能随其他插件更新；普通清单删除不会卸载管理器。首次接入不会卸载清单之外的已有插件；之后只自动删除本机同步基线中已接管的插件。当前安装对象应先完成来源整理，本地开发 link 不能冒充可恢复版本。
 
-1. 记录 profile 中每个 DSH bundle 或 Web client 插件的精确安装来源、原作者、仓库所有者、原始上游与版本；
-2. 导出 settings（剔除 `private-sync.local.yaml` 所拥有的字段）、profile/home patch 和 `AGENTS.md`；
-3. 使用 AES-256-GCM 与 scrypt 加密凭据；
-4. 提交并推送私有配置仓库。
+## 配置与凭据
 
-### 新电脑恢复
+`environment.json` 格式 2 保存同步范围，旧格式 1 只读迁移。`config/plugins.json` 保存精确版本与来源。原作者和 fork 信息随记录保留，不改变仓库的公开或私有属性。
 
-1. 安装 `dsh-environment-sync`；
-2. 配置并克隆私有仓库；
-3. 点击“拉取并应用”；
-4. 管理插件通过官方 `dsh plugin` 命令按固定提交安装每个插件，并在 pnpm 安装后重新写入固定提交；私有 fork 需要当前电脑具备仓库读取权限；
-5. 重启 DSH。
+`settings.yaml`、home/profile patch 和 `AGENTS.md` 使用 Git 历史。NAS 设置、情感资料库路径及会话绑定、Rabi Manager 地址不进入共享 settings；目标电脑的 webserver 配置保持本机值。其他机器专用字段可登记在 `private-sync.local.yaml`。
 
-## 同步失败与配置保护
+`.credentials.yaml` 与 `plugins/subscriptions/auth.json` 共同加密到 `credentials.enc.json`，使用 AES-256-GCM 和 scrypt。显式删除的凭据不会从旧文件复活；可选文件只有明确删除记录才会从目标移除。同步密钥、解密后的凭据、资料库及会话数据不得提交。
 
-“检查更新”仅获取远端引用，不安装插件或应用配置。“上传改动”包含插件清单导出，“拉取并应用”包含按清单安装，不需要额外执行记录或安装按钮。
+源码版 DSH 的官方接口依赖在每台电脑上自动绑定到同一份 `DSH_SOURCE_ROOT`，避免旧 npm 接口与新源码混用。这些官方依赖路径和本机锁文件不进入共享插件清单；共享插件本身保持固定 Git 来源。
 
-安装入口拒绝缺失清单；状态页仍可展示尚未建立清单的仓库。相同精确来源和版本不重复安装。安装命令显式使用目标 profile 所属的 DSH Home。
+## 失败与恢复
 
-配置恢复先读取和校验全部文件、解密凭据，再安装插件，最后应用配置。缺失同步密钥不会自动生成替代密钥。快照声明未包含凭据或可选文件时，不恢复残留文件，也不删除目标机器独有文件。配置写入失败会尝试恢复本次已写入的文件；这不构成跨进程崩溃恢复或插件安装的整体回滚。
+Git 操作、插件安装和环境应用分别互斥。操作阶段和恢复点保存在 profile 下的 `.dsh-environment-operation.json`、`.dsh-plugin-operation.json`、`.dsh-environment-restore.json`。这些本机文件可能包含设置或凭据，只留在本机。
 
-本机覆盖中的字段从导出快照中剔除；尚未声明为本机字段的配置仍会导出。部署前必须完成各插件字段归属整理。
+拉取前保存本机共享修改；应用前验证所需文件、密钥和变更插件的 Git 提交。报告安装失败时，尝试按原清单与锁文件恢复；进程中断后下一次操作先处理未完成的恢复。断网不能保证立即恢复全部包，但不会丢弃恢复记录。
 
-## Web 健康检查
+仓库中由外部程序留下的未提交改动会被保留并阻止覆盖，可通过 Git 客户端提交后继续。上传被远端新提交拒绝时，重试会重新合并。完整回退仍需原固定提交可获取。
 
-`scripts/ensure-dsh-web.ps1` 可供 Windows 计划任务调用。它用端口级互斥锁避免并发启动；健康响应存在时立即退出，插件同步写入重启标记或发现同端口孤儿 DSH 进程后才会停止旧实例并以隐藏窗口启动一个 `dsh web --no-open` 进程。脚本要求 `DSH_SOURCE_ROOT` 指向官方 DSH 源码，不会写入官方代码或常驻运行。
-
-## 私有仓库文件
-
-```text
-environment.json
-settings.yaml
-AGENTS.md
-cordis.patch.yml
-profiles/web/cordis.patch.yml
-config/plugins.json
-credentials.enc.json
-```
-
-## 验证
+## 开发检查
 
 ```powershell
 pnpm test
 pnpm run check
-pnpm pack --dry-run
+npm pack --dry-run
 ```
 
-## 许可证
+测试包含两个真实 Git 克隆的修改保留、冲突选择与失败重试；插件安装单元测试使用模拟安装器。发布验收另行执行真实 Git 包安装、启动和 GUI 检查。测试结果不能代替目标电脑的设备、网络或真实模型请求验收。
 
 MIT
-
-## Authenticated Web health checks
-
-The Windows health task reads the current launch URL from its local stdout log and uses a cookie session to probe the authenticated root page. Tokens remain in local runtime logs and are not copied into configuration or health-check output.
-
-## Plugin page loading
-
-The client prefetches status after its Remote mounts and shares an in-flight read. Initial loading does not imply an empty plugin list. Reopening shows the last successful snapshot while refreshing; failures retain that snapshot and allow retry. Background reads preserve unsaved repository fields.
