@@ -26,14 +26,16 @@ if (-not (Test-Path -LiteralPath $recoveryRoot)) {
 }
 & pnpm --dir $recoveryRoot install --ignore-scripts --frozen-lockfile
 if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the recovery runtime.' }
-& pnpm --dir $SourceRoot dsh plugin --profile web add --save-exact "github:vb2250158/dsh-environment-sync#$commit"
-if ($LASTEXITCODE -ne 0) { throw 'Could not install the sync plugin.' }
 $env:DSH_BOOTSTRAP_PLUGIN_ROOT = $recoveryRoot
 $env:DSH_BOOTSTRAP_COMMIT = $commit
-& node --input-type=module -e 'import fs from "node:fs"; import {pathToFileURL} from "node:url"; import {join} from "node:path"; const m=await import(pathToFileURL(join(process.env.DSH_BOOTSTRAP_PLUGIN_ROOT,"scripts/sync-third-party-plugins.mjs"))); const directory=join(process.env.DSH_HOME,"profiles/web"); m.alignOfficialRuntime(directory,process.env.DSH_SOURCE_ROOT); const path=join(directory,"package.json"); const p=JSON.parse(fs.readFileSync(path,"utf8")); p.dependencies["dsh-environment-sync"]="github:vb2250158/dsh-environment-sync#"+process.env.DSH_BOOTSTRAP_COMMIT; fs.writeFileSync(path,JSON.stringify(p,null,2)+"\n");'
+& pnpm --dir $SourceRoot dsh plugin --profile web install --lockfile-only --modules-dir .dsh-resolution-modules
+if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the profile.' }
+& node --input-type=module -e 'import fs from "node:fs"; import {pathToFileURL} from "node:url"; import {join} from "node:path"; const m=await import(pathToFileURL(join(process.env.DSH_BOOTSTRAP_PLUGIN_ROOT,"scripts/sync-third-party-plugins.mjs"))); const directory=join(process.env.DSH_HOME,"profiles/web"); m.alignOfficialRuntime(directory,process.env.DSH_SOURCE_ROOT,[JSON.parse(fs.readFileSync(join(process.env.DSH_BOOTSTRAP_PLUGIN_ROOT,"package.json"),"utf8"))]); const path=join(directory,"package.json"); const p=JSON.parse(fs.readFileSync(path,"utf8")); p.dependencies["dsh-environment-sync"]="github:vb2250158/dsh-environment-sync#"+process.env.DSH_BOOTSTRAP_COMMIT; fs.writeFileSync(path,JSON.stringify(p,null,2)+"\n");'
 if ($LASTEXITCODE -ne 0) { throw 'Could not align the official DSH runtime.' }
-& pnpm --dir $SourceRoot dsh plugin --profile web install
-if ($LASTEXITCODE -ne 0) { throw 'Could not install the official runtime links.' }
+& pnpm --dir $SourceRoot dsh plugin --profile web install --lockfile-only --modules-dir .dsh-resolution-modules
+if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the sync plugin.' }
+& pnpm --dir $SourceRoot dsh plugin --profile web install --frozen-lockfile
+if ($LASTEXITCODE -ne 0) { throw 'Could not install the sync runtime.' }
 if (-not (Test-Path -LiteralPath $DataRoot)) {
   & git clone $Repository $DataRoot
   if ($LASTEXITCODE -ne 0) { throw 'Cannot clone the private repository. Sign in to GitHub with repository access, then retry.' }

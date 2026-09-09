@@ -376,20 +376,26 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   alignOfficialRuntime(profileDir, dshSourceRoot, packageManifests)
   const env = { ...process.env, DSH_HOME: dirname(dirname(resolve(profileDir))) }
   const commands = []
+  // pnpm 11 can reinterpret installed source links as registry versions during add.
+  // Resolve against an empty modules directory; the final frozen install owns node_modules.
+  if (existsSync(join(profileDir, '.dsh-resolution-modules'))) throw new Error('Dependency resolution directory must be empty and absent')
   for (const plugin of changed) {
-    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--save-exact', plugin.specifier], { spawnCommand, env })
+    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', plugin.specifier], { spawnCommand, env })
     commands.push({ name: plugin.name, action: 'add', ...result })
     if (!result.ok) throw new Error(`安装插件 ${plugin.name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   for (const name of removed) {
-    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', name], { spawnCommand, env })
+    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', name], { spawnCommand, env })
     commands.push({ name, action: 'remove', ...result })
     if (!result.ok) throw new Error(`移除插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   restoreExactDependencySpecifiers(profileDir, manifest.plugins)
-  const lockfile = await run(packageManagerCommand(), ['--dir', profileDir, 'install', '--lockfile-only'], { spawnCommand })
+  const lockfile = await run(packageManagerCommand(), ['--dir', profileDir, 'install', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules'], { spawnCommand })
   commands.push({ name: 'profile', action: 'lockfile', ...lockfile })
   if (!lockfile.ok) throw new Error(`固定插件安装来源失败：${lockfile.output || `exit ${String(lockfile.exitCode)}`}`)
+  const installation = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'install', '--frozen-lockfile'], { spawnCommand, env })
+  commands.push({ name: 'profile', action: 'install', ...installation })
+  if (!installation.ok) throw new Error(`应用插件锁文件失败：${installation.output || `exit ${String(installation.exitCode)}`}`)
   const restartMarker = restartMarkerPath(profileDir)
   writeFileSync(restartMarker, `${JSON.stringify({ profile: safeProfile, requestedAt: new Date().toISOString() })}\n`)
   recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
