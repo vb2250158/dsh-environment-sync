@@ -95,6 +95,22 @@ test('启停状态只写 profile 管理区块', () => {
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
+test('手工停用不会被后续配置补丁误显示为启用', () => {
+  const home = temporaryHome()
+  try {
+    profile(home)
+    writeFileSync(join(home, 'profiles/web/cordis.patch.yml'), '- id: fixture\n  disabled: true\n- id: fixture\n  config: {}\n')
+    writeFileSync(join(home, 'cordis.patch.yml'), '- id: fixture\n  config: {}\n')
+    const state = privatePluginEnablement(home, 'web', 'fixture')
+    assert.equal(state.enabled, false)
+    assert.equal(state.effectiveEnabled, false)
+    assert.equal(state.requestedEnabled, true)
+    writePrivatePluginEnabled(home, 'web', 'fixture', true)
+    assert.equal(privatePluginEnablement(home, 'web', 'fixture').enabled, true)
+    assert.match(readFileSync(join(home, 'profiles/web/cordis.patch.yml'), 'utf8'), /config: \{\}/)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
 test('Host Remote 只暴露配置、启停和私有环境同步操作', () => {
   const manager = new PrivatePluginManager(new Context())
   assert.deepEqual(remoteMethods(manager).map(item => item.method), [

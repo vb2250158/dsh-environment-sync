@@ -385,7 +385,7 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
     if (!result.ok) throw new Error(`安装插件 ${plugin.name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }
   for (const name of removed) {
-    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', name], { spawnCommand, env })
+    const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'remove', '--lockfile-only', '--config.modules-dir=.dsh-resolution-modules', name], { spawnCommand, env })
     commands.push({ name, action: 'remove', ...result })
     if (!result.ok) throw new Error(`移除插件 ${name} 失败：${result.output || `exit ${String(result.exitCode)}`}`)
   }

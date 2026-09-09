@@ -288,8 +288,8 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
     assert.deepEqual(calls.map(call => call.args), [
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', 'example-dsh-bundle@1.2.3'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
-      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', 'obsolete-dsh-bundle'],
-      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', 'obsolete-client-plugin'],
+      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', '--lockfile-only', '--config.modules-dir=.dsh-resolution-modules', 'obsolete-dsh-bundle'],
+      ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'remove', '--lockfile-only', '--config.modules-dir=.dsh-resolution-modules', 'obsolete-client-plugin'],
       ['--dir', profileDir, 'install', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'install', '--frozen-lockfile'],
     ])
