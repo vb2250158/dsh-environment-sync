@@ -1,8 +1,8 @@
 /** Record and reproduce portable DSH profile plugins. */
 
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
+import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import lockfile from 'proper-lockfile'
 import { parse, stringify } from 'yaml'
 import { createRequire } from 'node:module'
@@ -393,6 +393,16 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   const lockfile = await run(packageManagerCommand(), ['--dir', profileDir, 'install', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules'], { spawnCommand })
   commands.push({ name: 'profile', action: 'lockfile', ...lockfile })
   if (!lockfile.ok) throw new Error(`固定插件安装来源失败：${lockfile.output || `exit ${String(lockfile.exitCode)}`}`)
+  const detachedRoot = join(profileDir, '.dsh-detached-links', randomUUID())
+  for (const current of installed) {
+    if (!/^(?:link:|file:)/.test(current.requested) || (!changed.some(plugin => plugin.name === current.name) && !removed.includes(current.name))) continue
+    const entry = join(profileDir, 'node_modules', current.name)
+    if (!existsSync(entry) || !lstatSync(entry).isSymbolicLink()) continue
+    // Move the junction itself so installation cannot write into the developer checkout.
+    const saved = join(detachedRoot, current.name)
+    mkdirSync(dirname(saved), { recursive: true })
+    renameSync(entry, saved)
+  }
   const installation = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'install', '--frozen-lockfile'], { spawnCommand, env })
   commands.push({ name: 'profile', action: 'install', ...installation })
   if (!installation.ok) throw new Error(`应用插件锁文件失败：${installation.output || `exit ${String(installation.exitCode)}`}`)
