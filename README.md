@@ -6,7 +6,7 @@
 
 使用已安装并构建的 Windows DSH 源码环境，设置 `DSH_SOURCE_ROOT`。当前兼容检查使用 DSH `0.1.3-alpha.1` 源码接口（上游提交 `d347e703908d0406b7a7ef80e3a0e594d86b2215`）。本插件不更新或覆盖 DSH 源码。
 
-克隆本插件的固定发布提交，在 PowerShell 执行：
+克隆本插件的 `v0.6.0` 发布标签并记录其完整提交，在 PowerShell 执行：
 
 ```powershell
 ./scripts/bootstrap-environment.ps1 -SourceRoot <DSH源码目录> -Repository https://github.com/<owner>/<private-environment>.git
