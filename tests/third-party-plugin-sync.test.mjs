@@ -284,7 +284,7 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
 
     const result = await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, spawnCommand: fakePnpm(profileDir, calls) })
     assert.ok(calls.every(call => call.command === 'pnpm'))
-    assert.ok(calls.every(call => call.options.shell === (process.platform === 'win32')))
+    assert.ok(calls.every(call => call.options.shell === false))
     assert.deepEqual(calls.map(call => call.args), [
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', 'example-dsh-bundle@1.2.3'],
       ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', 'web', 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],

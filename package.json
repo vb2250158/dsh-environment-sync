@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.6.0-rc.6",
+  "version": "0.6.0-rc.7",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -56,6 +56,7 @@
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.8",
     "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.8",
     "@deepseek-ai/schemastery": "^3.18.1",
+    "cross-spawn": "7.0.6",
     "proper-lockfile": "4.1.2",
     "yaml": "^2.9.0",
     "zod": "4.4.3"

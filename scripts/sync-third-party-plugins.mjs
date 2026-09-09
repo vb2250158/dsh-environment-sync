@@ -1,6 +1,6 @@
 /** Record and reproduce portable DSH profile plugins. */
 
-import { spawn } from 'node:child_process'
+import spawn from 'cross-spawn'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import lockfile from 'proper-lockfile'
@@ -277,7 +277,7 @@ function staleManagedPlugins(profileDir, installed, desiredNames, profile) {
 
 function run(command, args, { cwd, env = process.env, spawnCommand = spawn } = {}) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawnCommand(command, args, { cwd, env, shell: process.platform === 'win32', windowsHide: true })
+    const child = spawnCommand(command, args, { cwd, env, shell: false, windowsHide: true })
     let output = ''
     child.stdout?.on('data', chunk => { output += chunk.toString() })
     child.stderr?.on('data', chunk => { output += chunk.toString() })
