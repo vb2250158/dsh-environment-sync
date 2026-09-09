@@ -17,9 +17,6 @@ importers:
       '@deepseek-ai/dsh-client-connection':
         specifier: '>=0.1.0-rc.8'
         version: 0.1.0-rc.8(fe206655156830a934a8c1ad4c553629)
-      '@deepseek-ai/dsh-client-runtime':
-        specifier: '>=0.1.0-rc.8'
-        version: 0.1.0-rc.8(0e60b9f95af714a85e67a98df3af0bfd)
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: '>=0.1.0-rc.8'
         version: 0.1.0-rc.8(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.8(@deepseek-ai/cordis@4.0.1))
