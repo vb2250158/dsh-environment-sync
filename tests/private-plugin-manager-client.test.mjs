@@ -19,7 +19,7 @@ async function loadClientBundle() {
     assert.equal(loaded.id, 'dsh-environment-sync')
     return loaded.factory(id => {
       if (id === 'react') return fakeReact
-      if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: 'DshButton' }
+      if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: 'DshButton', Modal: 'DshModal' }
       throw new Error(`Unexpected dependency ${id}`)
     })
   } finally {
@@ -67,6 +67,8 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
   assert.match(source, /第三方修改版使用标明原作者和上游的私有 fork/)
   assert.match(source, /拉取并应用/)
+  assert.match(source, /需要重启 DSH/)
+  assert.match(source, /确认并重启/)
   assert.match(source, /作者：/)
   assert.match(source, /原作者/)
   assert.match(source, /私有 fork/)
