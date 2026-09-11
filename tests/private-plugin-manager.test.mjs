@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import { tmpdir } from 'node:os'
@@ -131,10 +131,27 @@ test('运行摘要检测同版本磁盘代码变化并要求重启', async () =>
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
+test('取消重启会保留可读的待生效标记', async () => {
+  const home = temporaryHome()
+  try {
+    const dir = profile(home)
+    const manager = new PrivatePluginManager(new Context())
+    manager.dshHome = home
+    const status = await manager.deferRestart()
+    const marker = JSON.parse(readFileSync(join(dir, '.dsh-restart-required'), 'utf8'))
+    assert.equal(existsSync(join(dir, '.dsh-restart-required')), true)
+    assert.equal(marker.profile, 'web')
+    assert.equal(marker.note, 'Restart required for installed updates to take effect.')
+    assert.equal(typeof marker.deferredAt, 'string')
+    assert.equal(status.restartRequired, true)
+    assert.match(status.operation.message, /已缓存待生效更新/)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
 test('Host Remote 只暴露配置、启停和私有环境同步操作', () => {
   const manager = new PrivatePluginManager(new Context())
   assert.deepEqual(remoteMethods(manager).map(item => item.method), [
-    'status', 'configure', 'setEnabled', 'cloneData', 'fetchData', 'publishData', 'syncData', 'resolveConflict', 'setSyncKey', 'changePlugin', 'restoreEnvironment', 'restartEnvironment', 'recordThirdParty', 'syncThirdParty',
+    'status', 'configure', 'setEnabled', 'cloneData', 'fetchData', 'publishData', 'syncData', 'resolveConflict', 'setSyncKey', 'changePlugin', 'restoreEnvironment', 'deferRestart', 'restartEnvironment', 'recordThirdParty', 'syncThirdParty',
   ])
 })
 

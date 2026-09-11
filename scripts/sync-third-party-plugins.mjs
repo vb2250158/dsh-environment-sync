@@ -174,9 +174,19 @@ export function manifestPath(repositoryPath) {
   return join(resolve(repositoryPath), 'config', THIRD_PARTY_MANIFEST_FILENAME)
 }
 
-/** Return the one-shot restart marker for a profile whose plugins changed. */
+/** Return the restart-pending marker for a profile whose plugins changed. */
 export function restartMarkerPath(profileDir) {
   return join(resolve(profileDir), RESTART_MARKER_FILENAME)
+}
+
+/** Record that a user deferred an already-required restart. */
+export function deferRestart(profileDir, profile = 'web') {
+  const safeProfile = profileName(profile)
+  writeJsonAtomically(restartMarkerPath(profileDir), {
+    profile: safeProfile,
+    deferredAt: new Date().toISOString(),
+    note: 'Restart required for installed updates to take effect.',
+  })
 }
 
 export function emptyThirdPartyManifest(profile = 'web') {
