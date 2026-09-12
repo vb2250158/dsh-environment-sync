@@ -25,6 +25,54 @@ $mutex = New-Object System.Threading.Mutex($false, "Local\DeepSeekHarness-Web-$p
 $lockTaken = $false
 $standardOutputLog = Join-Path $dshHome 'logs\web-host.stdout.log'
 
+# Resolve the Node runtime explicitly instead of trusting PATH order. A harness
+# built for one Node major version carries native addons compiled for that
+# version's ABI (NODE_MODULE_VERSION); a mismatched interpreter aborts the boot
+# with ERR_DLOPEN_FAILED. DSH_NODE_BIN wins, then a well-known absolute install,
+# and only then PATH.
+function Resolve-NodeRuntime {
+  $explicit = $env:DSH_NODE_BIN
+  if (-not [string]::IsNullOrWhiteSpace($explicit)) {
+    if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) {
+      throw "DSH_NODE_BIN does not point at a file: $explicit"
+    }
+    return $explicit
+  }
+  # Join-Path throws on a null Path, and ProgramFiles(x86) is absent on 32-bit
+  # Windows, so the roots are filtered before any path is composed.
+  $candidates = @()
+  foreach ($programFiles in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+    if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+      $candidates += (Join-Path $programFiles 'nodejs\node.exe')
+    }
+  }
+  foreach ($candidate in $candidates) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      return $candidate
+    }
+  }
+  $onPath = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($null -eq $onPath) { throw 'No Node.js runtime found on PATH and no absolute install detected. Set DSH_NODE_BIN.' }
+  return $onPath.Source
+}
+
+# Probe a native addon before anything is stopped, so an ABI mismatch fails
+# while the previous host is still serving. Returns $null when no addon is
+# available to test (nothing to assert either way).
+function Test-NodeRuntimeCompatible {
+  param([string]$NodePath, [string]$Root)
+  $pnpmDir = Join-Path $Root 'node_modules\.pnpm'
+  if (-not (Test-Path -LiteralPath $pnpmDir -PathType Container)) { return $null }
+  $addon = Get-ChildItem -LiteralPath $pnpmDir -Directory -Filter 'fs-ext@*' -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName 'node_modules\fs-ext' } |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+    Select-Object -First 1
+  if ($null -eq $addon) { return $null }
+  $target = ($addon -replace '\\', '/')
+  & $NodePath -e "require('$target')" *> $null
+  return ($LASTEXITCODE -eq 0)
+}
+
 function Test-DshWebHealth {
   $probeUri = "http://127.0.0.1:$port/"
   if (Test-Path -LiteralPath $standardOutputLog -PathType Leaf) {
@@ -56,6 +104,13 @@ try {
     if (Test-DshWebHealth) { exit 0 }
   }
 
+  # Everything that can fail is checked while the current host is still up.
+  $node = Resolve-NodeRuntime
+  $compatible = Test-NodeRuntimeCompatible -NodePath $node -Root $sourceRoot
+  if ($compatible -eq $false) {
+    throw "Node runtime $node cannot load the harness native addons (ABI mismatch). The running DSH instance was left untouched. Set DSH_NODE_BIN to a matching runtime, or rebuild the addons for this one."
+  }
+
   $listeners | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
   Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
     Where-Object { $_.CommandLine -match 'apps/cli/src/bin\.ts.*\bweb\b' -and $_.CommandLine -match "(?:^|\\s)--port\\s+$port(?:\\s|$)" } |
@@ -73,7 +128,6 @@ try {
   $standardOutputLog = Join-Path $logDirectory 'web-host.stdout.log'
   $standardErrorLog = Join-Path $logDirectory 'web-host.stderr.log'
   $env:NODE_USE_ENV_PROXY = '1'
-  $node = (Get-Command node -ErrorAction Stop).Source
   $process = Start-Process -FilePath $node -ArgumentList @('--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'web', '--no-open', '--port', "$port") -WorkingDirectory $sourceRoot -WindowStyle Hidden -RedirectStandardOutput $standardOutputLog -RedirectStandardError $standardErrorLog -PassThru
   $startDeadline = (Get-Date).AddSeconds(45)
   do {
