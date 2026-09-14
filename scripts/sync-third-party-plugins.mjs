@@ -4,6 +4,7 @@ import spawn from 'cross-spawn'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import lockfile from 'proper-lockfile'
+import { assertNoPendingTakeover } from '../lib/stale-takeover.js'
 import { parse, stringify } from 'yaml'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
@@ -487,6 +488,7 @@ export async function syncThirdPartyPlugins(options) {
     writeJsonAtomically(journalPath, { ...journal, state: 'restored' })
   }
   try {
+    assertNoPendingTakeover(profileDir)
     const pending = existsSync(journalPath) ? readJson(journalPath, 'Plugin operation') : null
     if (options.restoreOnly) {
       if (pending !== null && (options.operationId === undefined || pending.operationId === options.operationId)) await restore(pending)
