@@ -56,6 +56,23 @@ Git 必须已获得私有仓库读取权限。首次进入“设置 → 我的�
 
 ## 日常操作
 
+### 接管遗留环境事务（仅维护窗口）
+
+如果 profile 中遗留 `applying`、`restore-failed` 或其它未完成事务，**不要直接点击重试、拉取并应用、上传或安装插件**；旧流程可能先恢复旧快照并继承上传意图。确认所有 Agent/网页工作已妥善收尾，并从当前运行 profile、清单、锁文件和实际进程完成只读核对后，才可在同一台机器的维护窗口运行：
+
+```powershell
+node scripts/takeover-stale-transactions.mjs `
+  --dsh-home <绝对 DSH Home> `
+  --profile <profile> `
+  --repository <绝对私库克隆> `
+  --backup-directory <DSH Home/backups/本轮目录> `
+  --confirm-preserve-current `
+  --acknowledge-unverified-installation `
+  --confirm-exclusive-maintenance
+```
+
+该入口只备份当前文件并原样移出遗留 journal，**不恢复快照、不安装、不上传、不重启**；回执中的安装一致性、旧事务成功和同步成功仍为未证明。备份目录必须位于该 DSH Home 的 `backups` 子目录；任何锁、路径漂移、符号链接、备份不一致或中断都会拒绝并保留 pending 门禁。接管完成后，另行按当前清单执行官方安装入口并核对固定提交、解析目录、loader、运行进程和页面；不能把接管回执当作新版已加载。不要从备份目录运行旧脚本，也不要在 Agent 仍活动时调用重启入口。
+
 重启电脑后可双击 DSH Home 中的 `Start DSH.vbs` 启动服务，再打开本机 DSH 页面。启动器保存本机源码与 Home 路径，不依赖旧聚合包环境变量；需要自动启动时可将该入口的快捷方式放入 Windows 启动目录。
 
 - **检查更新**：只获取远端引用。
