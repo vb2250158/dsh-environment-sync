@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import {
+  CATALOG_SCOPES,
   PRIVATE_PLUGIN_PACKAGE_NAME,
   PrivatePluginManager,
   normalizeRepositoryConfig,
@@ -80,6 +81,36 @@ test('状态从 profile 已安装包读取每个独立插件版本', () => {
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-unlisted-client').installed, true)
     assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-environment-sync').manageable, false)
   } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('每个已安装插件都带合法作用范围，未分类项降级为全局插件', () => {
+  const home = temporaryHome()
+  try {
+    profile(home)
+    const status = readPrivatePluginStatus({ dshHome: home })
+    for (const plugin of status.plugins) {
+      assert.ok(CATALOG_SCOPES.includes(plugin.scope), `${plugin.packageName} scope must be session or global, got ${String(plugin.scope)}`)
+    }
+    // catalog.json 已分类的条目按其声明取值。
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-theme-blue').scope, 'session')
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-chat-enhancement').scope, 'session')
+    // 不在 catalog 中的插件不猜测作用范围，一律降级为全局插件。
+    assert.equal(status.plugins.find(plugin => plugin.packageName === 'dsh-unlisted-client').scope, 'global')
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('catalog 中每个条目都有显示名、说明和合法作用范围', () => {
+  const catalog = JSON.parse(readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'))
+  assert.ok(catalog.plugins.length > 0)
+  const seen = new Set()
+  for (const plugin of catalog.plugins) {
+    assert.ok(typeof plugin.id === 'string' && plugin.id !== '', 'catalog entry needs an id')
+    assert.ok(!seen.has(plugin.id), `catalog id is duplicated: ${plugin.id}`)
+    seen.add(plugin.id)
+    assert.ok(typeof plugin.name === 'string' && plugin.name.trim() !== '', `${plugin.id} needs a display name`)
+    assert.ok(typeof plugin.description === 'string' && plugin.description.trim() !== '', `${plugin.id} needs a description`)
+    assert.ok(CATALOG_SCOPES.includes(plugin.scope), `${plugin.id} needs scope session or global, got ${String(plugin.scope)}`)
+  }
 })
 
 test('启停状态只写 profile 管理区块', () => {

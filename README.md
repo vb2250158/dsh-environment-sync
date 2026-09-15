@@ -89,6 +89,16 @@ node scripts/takeover-stale-transactions.mjs `
 
 `environment.json` 格式 2 保存同步范围，旧格式 1 只读迁移。`config/plugins.json` 保存精确版本与来源。原作者和 fork 信息随记录保留，不改变仓库的公开或私有属性。
 
+### 插件展示数据（`catalog.json`）
+
+管理页面的插件显示名、作用范围分类和说明来自插件自带的 `catalog.json`，与版本和来源（私有仓库的 `config/plugins.json`）分开维护。每个条目必须带：
+
+- `name` —— 面向用户的**显示名**，中文短名，不是包名。
+- `scope` —— **作用范围**，取值 `session`（会话插件）或 `global`（全局插件）。
+- `description` —— 一句话说明；`details` 补充边界和生效方式。
+
+`scope` 按**效果的作用范围**划分，不按仓库或作者：只改变单个会话界面与行为的算会话插件（主题、聊天展示、模型下拉、按会话挂载的面板）；提供跨会话能力、注入约束或注册全局工具的算全局插件（网络、搜索与模型提供方、约束注入）。取值缺失或非法时按 `global` 处理，避免把全局插件误显示成只影响一个对话。完整字段表与判定顺序见 [docs/plugin-manager.md](docs/plugin-manager.md)。
+
 `settings.yaml`、home/profile patch 和 `AGENTS.md` 使用 Git 历史。NAS 设置、情感资料库路径及会话绑定、Rabi Manager 地址不进入共享 settings；目标电脑的 webserver 配置保持本机值。其他机器专用字段可登记在 `private-sync.local.yaml`。
 
 `.credentials.yaml` 与 `plugins/subscriptions/auth.json` 共同加密到 `credentials.enc.json`，使用 AES-256-GCM 和 scrypt。显式删除的凭据不会从旧文件复活；可选文件只有明确删除记录才会从目标移除。同步密钥、解密后的凭据、资料库及会话数据不得提交。

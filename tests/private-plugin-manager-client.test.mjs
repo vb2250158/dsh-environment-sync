@@ -28,11 +28,11 @@ async function loadClientBundle() {
   }
 }
 
-function context() {
+function context(plugins) {
   const registered = []
   const mounted = []
   const status = {
-    plugins: [{ id: 'theme', name: '主题', packageName: 'dsh-theme-blue', repository: 'vb2250158/dsh-theme-blue', author: 'vb2250158', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true }],
+    plugins: plugins ?? [{ id: 'theme', name: '主题', packageName: 'dsh-theme-blue', repository: 'vb2250158/dsh-theme-blue', author: 'vb2250158', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true }],
     dataRepository: { remoteUrl: 'https://github.com/example/private', localPath: 'C:/Private', isGitRepository: true, changes: 0, canClone: false },
     environment: { configured: true, bundleCount: 3, settingsNamespaceCount: 5, credentialsEncrypted: true },
     thirdParty: { configured: true, plugins: [{ name: 'community-plugin', version: '1.0.0', specifier: 'github:private-owner/community-plugin#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repositoryOwner: 'private-owner', author: 'community', upstreamRepository: 'community/community-plugin', installed: null }] },
@@ -49,7 +49,7 @@ function context() {
       register: (options, component) => { registered.push({ options, component }); return () => {} },
     },
   }
-  return { ctx, mounted, registered }
+  return { ctx, mounted, registered, status }
 }
 
 test('客户端只配置私有仓库，并提供按清单拉取插件的操作', async () => {
@@ -108,3 +108,45 @@ test('预取与页面请求合并，首次等待不显示零数量或空配置',
   service.status = async () => ready
   await actions.readStatus()
 })
+
+test('已安装插件按作用范围分为会话插件与全局插件两组', async () => {
+  const client = await loadClientBundle()
+  const { ctx, registered, status } = context([
+    { id: 'theme', name: '主题与装饰', description: '主题基础。', packageName: 'dsh-theme-blue', scope: 'session', localVersion: '1.0.0', installed: true, manageable: true, controlAvailable: true, enabled: true },
+    { id: 'search', name: 'GPT 联网搜索', description: '把 web_search 交给 ChatGPT。', packageName: 'dsh-gpt-web-search', scope: 'global', localVersion: '0.1.0', installed: true, manageable: true, controlAvailable: true, enabled: true },
+  ])
+  await client.apply(ctx)
+  const { component, options } = registered[0]
+  const actions = options.inject()
+  await actions.readStatus()
+  const rendered = JSON.stringify(component(actions))
+  assert.equal(status.plugins.length, 2)
+  assert.match(rendered, /会话插件（1）/)
+  assert.match(rendered, /全局插件（1）/)
+  assert.match(rendered, /只影响单个会话的界面与行为/)
+  assert.match(rendered, /影响整个 DSH 进程或所有会话/)
+  // 会话组必须排在全局组之前。
+  assert.ok(rendered.indexOf('会话插件（1）') < rendered.indexOf('全局插件（1）'))
+  assert.match(rendered, /主题基础。/)
+  assert.match(rendered, /把 web_search 交给 ChatGPT。/)
+})
+
+test('未分类插件降级为全局插件，不会被显示成会话插件', async () => {
+  const client = await loadClientBundle()
+  const { ctx, registered } = context([
+    { id: 'unclassified', name: '未分类插件', packageName: 'dsh-unclassified', localVersion: '0.0.1', installed: true, manageable: false },
+    { id: 'also-unclassified', name: '另一个未分类插件', packageName: 'dsh-also', localVersion: '0.0.2', installed: true, manageable: false },
+  ])
+  await client.apply(ctx)
+  const { component, options } = registered[0]
+  const actions = options.inject()
+  await actions.readStatus()
+  const rendered = JSON.stringify(component(actions))
+  assert.match(rendered, /全局插件（2）/)
+  assert.doesNotMatch(rendered, /会话插件/)
+})
+
+
+
+
+

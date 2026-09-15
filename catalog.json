@@ -7,8 +7,8 @@
       "packageName": "dsh-theme-blue",
       "repository": "vb2250158/dsh-theme-blue",
       "loaderId": "ui-theme-blue",
-      "description": "私有主题基础、样式包和贴纸装饰的入口。",
-      "details": "覆盖官方“外观”设置入口；基础亮暗模式、私有样式包和贴纸都由这里管理。",
+      "description": "网站外观的主题基础、样式包和贴纸装饰。",
+      "details": "接管官方“外观”设置入口；浅色、深色、跟随系统的基础模式，以及私有样式包和贴纸都从这里管理。主题覆盖随页面加载生效，不改变其他会话的数据。",
       "changelog": [
         {
           "version": "0.1.0-rc.8.8",
@@ -88,7 +88,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "session"
     },
     {
       "id": "client-ui-turn-continuation",
@@ -96,8 +97,8 @@
       "packageName": "dsh-turn-continuation",
       "repository": "vb2250158/dsh-turn-continuation",
       "loaderId": "turn-continuation",
-      "description": "在意外中断或终止失败且尚未完成的 Agent 回合下显示继续重试按钮。",
-      "details": "点击后会以已保存的会话上下文启动一个新的继续回合；不会伪造或重接已经断开的模型流，也不会把内部继续指令显示成用户聊天气泡。",
+      "description": "给意外中断、还没跑完的回合补一个「继续重试」按钮。",
+      "details": "终止失败或崩溃后，尚未完成的会话会显示继续按钮；点击后带着已保存的会话上下文新开一个继续回合，不会伪造或重接已经断开的模型流。",
       "changelog": [
         {
           "version": "0.1.2",
@@ -124,7 +125,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "session"
     },
     {
       "id": "client-ui-provider-visibility",
@@ -132,8 +134,8 @@
       "packageName": "dsh-provider-visibility",
       "repository": "vb2250158/dsh-provider-visibility",
       "loaderId": "provider-visibility",
-      "description": "控制模型下拉中显示哪些提供方，并保存设置。",
-      "details": "控制模型下拉中显示哪些已配置提供方；隐藏不会删除已有路由或模型配置。",
+      "description": "决定模型下拉里显示哪些提供方，并保存这份选择。",
+      "details": "只影响下拉列表的显示；隐藏提供方不会删除已有路由或模型配置，随时可以重新显示。",
       "changelog": [
         {
           "version": "0.1.0-rc.8.6",
@@ -195,7 +197,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "session"
     },
     {
       "id": "source-preservation-guidance",
@@ -203,8 +206,8 @@
       "packageName": "dsh-source-preservation-guidance",
       "repository": "vb2250158/dsh-source-preservation-guidance",
       "loaderId": "source-preservation-guidance",
-      "description": "将私有插件优先和官方代码保护规则注入 DSH。",
-      "details": "要求优先通过私有插件实现扩展，官方源码和 profile 保持只读。",
+      "description": "注入「优先写私有插件、官方源码只读」的约束规则。",
+      "details": "要求扩展一律通过私有插件实现，官方源码和 profile 保持只读。对所有会话生效。",
       "changelog": [
         {
           "version": "0.1.1",
@@ -215,7 +218,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "gpt-tool-schema-compatibility",
@@ -223,8 +227,8 @@
       "packageName": "dsh-gpt-tool-schema-compatibility",
       "repository": "vb2250158/dsh-gpt-tool-schema-compatibility",
       "loaderId": "gpt-tool-schema-compatibility",
-      "description": "修复 GPT/Codex 在 Full access 下的工具参数冲突。",
-      "details": "仅适配 GPT/Codex 模型，不改变其他模型或工具执行器。",
+      "description": "修复 GPT / Codex 在 Full access 下的工具参数冲突。",
+      "details": "只对 GPT / Codex 模型生效：移除这些模型不接受的沙箱升级字段，不改变其他模型和工具执行器。",
       "changelog": [
         {
           "version": "0.1.0",
@@ -235,7 +239,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "gpt-web-search",
@@ -243,8 +248,8 @@
       "packageName": "dsh-gpt-web-search",
       "repository": "vb2250158/dsh-gpt-web-search",
       "loaderId": "gpt-web-search",
-      "description": "让稳定的 web_search 工具改由 GPT 订阅模型执行联网检索。",
-      "details": "复用“设置 → 订阅”中的 ChatGPT 登录，默认调用 gpt-5.6-sol 的原生 web_search；工具名仍保持 web_search。",
+      "description": "把 web_search 交给 ChatGPT 订阅模型执行联网检索。",
+      "details": "复用「设置 → 订阅」里的 ChatGPT 登录，默认调用 gpt-5.6-sol 的原生 web_search；对模型暴露的工具名仍是 web_search。",
       "changelog": [
         {
           "version": "0.1.0",
@@ -256,7 +261,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "openai-responses-web-search",
@@ -265,8 +271,8 @@
       "repository": "vb2250158/dsh-openai-responses-web-search",
       "author": "vb2250158",
       "loaderId": "openai-responses-web-search",
-      "description": "通过兼容 OpenAI Responses API 的服务提供 web_search。",
-      "details": "地址、凭据环境变量名和模型保存在私有 profile 配置中，公开源码不保存真实部署信息。",
+      "description": "用兼容 OpenAI Responses API 的服务提供联网搜索。",
+      "details": "搜索地址、凭据环境变量名和模型保存在本机 profile 配置中，公开源码不保存真实部署信息。",
       "changelog": [
         {
           "version": "0.1.0",
@@ -277,7 +283,8 @@
           ]
         }
       ],
-      "manageable": true
+      "manageable": true,
+      "scope": "global"
     },
     {
       "id": "subagent-output-sanitizer",
@@ -285,8 +292,8 @@
       "packageName": "dsh-subagent-output-sanitizer",
       "repository": "vb2250158/dsh-subagent-output-sanitizer",
       "loaderId": "subagent-output-sanitizer",
-      "description": "清理子代理消息中的孤立工具块。",
-      "details": "避免 Codex Responses API 因缺少工具输出而拒绝会话。",
+      "description": "清理子代理消息里孤立的工具块。",
+      "details": "把子代理报告里缺少对应输出的工具块转成普通文本，避免 Codex Responses API 因此拒绝整个会话。",
       "changelog": [
         {
           "version": "0.1.0",
@@ -297,7 +304,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "nas-workspace-support",
@@ -306,7 +314,7 @@
       "repository": "vb2250158/dsh-nas-workspace-support",
       "loaderId": "nas-workspace-support",
       "description": "为 NAS 工作区提供可配置的路径映射与打开行为。",
-      "details": "映射路径由当前电脑的插件设置提供，不写入共享配置。",
+      "details": "挂载路径由当前电脑的插件设置提供，不写入共享配置，因此换机后各自维护。",
       "changelog": [
         {
           "version": "0.2.1",
@@ -324,7 +332,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "rabiroute-agent",
@@ -332,8 +341,8 @@
       "packageName": "dsh-rabiroute-agent",
       "repository": "vb2250158/dsh-rabiroute-agent",
       "loaderId": "rabiroute-agent",
-      "description": "把 DSH Agent 接入 RabiRoute 的 Agent 线程和消息接口。",
-      "details": "把 DSH Agent 接入 RabiRoute Manager 的线程、消息、计划和记忆控制接口。",
+      "description": "把 DSH 会话接入 RabiRoute 的任务、消息、计划和记忆接口。",
+      "details": "只做工具适配层：注册工具、转换请求与结果、校验连接。计划、记忆、人格和调度仍由 RabiRoute 持有，会话、工具和权限仍由 DSH 持有。",
       "changelog": [
         {
           "version": "0.1.3",
@@ -352,7 +361,8 @@
         }
       ],
       "manageable": false,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "rabi-default-persona",
@@ -360,8 +370,8 @@
       "packageName": "dsh-rabi-default-persona",
       "repository": "vb2250158/dsh-rabi-default-persona",
       "loaderId": "rabi-default-persona",
-      "description": "通过 Rabi Manager 选择并启用全局 Rabi 人格。",
-      "details": "从 Rabi Manager 选择要用于整个 DSH 的默认人格。",
+      "description": "通过 Rabi Manager 选择整个 DSH 的默认人格。",
+      "details": "从 Rabi Manager 读取人格列表和选中人格正文，启用后持久化为全局绑定；Manager 不可连接时只显示状态，不会中断 DSH 回合。",
       "changelog": [
         {
           "version": "0.1.3",
@@ -384,7 +394,8 @@
         }
       ],
       "manageable": true,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "environment-sync",
@@ -392,8 +403,8 @@
       "packageName": "dsh-environment-sync",
       "repository": "vb2250158/dsh-environment-sync",
       "loaderId": "environment-sync",
-      "description": "同步多台电脑的 DSH 配置，并管理本人公开插件和标明上游的第三方私有 fork。",
-      "details": "私有环境仓库保存插件清单、启停状态、配置、AGENTS.md 和加密凭据；第三方修改版使用单独的私有 fork。",
+      "description": "在多台电脑之间同步整套 DSH 插件与共享配置。",
+      "details": "私有环境仓库保存插件清单、启停状态、配置、AGENTS.md 和加密凭据；插件本身按固定提交从各自公开仓库安装。",
       "changelog": [
         {
           "version": "0.5.3",
@@ -457,15 +468,16 @@
         }
       ],
       "manageable": false,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "global"
     },
     {
       "id": "chat-enhancement",
       "name": "聊天增强",
       "packageName": "dsh-chat-enhancement",
       "repository": "vb2250158/dsh-chat-enhancement",
-      "description": "在聊天中预览文件，并让 Agent 主动展示图片和视频。",
-      "details": "图片、视频、Markdown 和其他受支持文件在聊天内显示缩略图；点击后打开页内预览器。",
+      "description": "在聊天里直接预览文件和批注。",
+      "details": "图片、视频、Markdown 等受支持文件在聊天内显示缩略图，点击后在页内预览器中打开，也可以加批注；Agent 还能主动展示图片和视频。",
       "changelog": [
         {
           "version": "0.3.1",
@@ -484,7 +496,8 @@
         }
       ],
       "manageable": false,
-      "author": "vb2250158"
+      "author": "vb2250158",
+      "scope": "session"
     }
   ]
 }
