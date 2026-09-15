@@ -498,6 +498,39 @@
       "manageable": false,
       "author": "vb2250158",
       "scope": "session"
+    },
+    {
+      "id": "usage-plugin",
+      "name": "用量与消耗",
+      "packageName": "@feiyang666/dsh-usage-plugin",
+      "repository": "vb2250158/dsh-usage-plugin",
+      "loaderId": "usage-plugin",
+      "description": "统计每次模型调用的 token、缓存命中与费用，价格取自 OpenRouter 目录。",
+      "details": "在「用量与消耗」页签按模型、服务商、会话查看调用次数、token 明细与费用；价格表页签可搜索模型并手动同步 OpenRouter 价格、设置月度预算。表里查不到的模型费用按 0 计，不做近似匹配——宁可留下可见缺口，也不用相似型号的价格顶替。",
+      "changelog": [
+        {
+          "version": "1.17.1",
+          "date": "2026-09-15",
+          "changes": [
+            "在 dsh 块登记上游仓库，便于区分 fork 与原始项目。"
+          ]
+        },
+        {
+          "version": "1.17.0",
+          "date": "2026-09-15",
+          "changes": [
+            "计价改为 OpenRouter 目录驱动：syncPrices 拉取公开价格表并为任意模型计价，不再限于 DeepSeek 档位。",
+            "模型按名称三级匹配（精确 id → 型号名 → 别名），实录的 gpt-6-astra 可命中 openai/gpt-6-astra。",
+            "金额符号跟随 currency 设置（默认 USD），移除写死的 ¥ 与 USD/CNY 折算。",
+            "缓存命中价取 input_cache_read；该字段缺失或为 0 时退回未命中价，避免把缓存输入算成免费。",
+            "计价规则抽到 lib/pricing.js 并补 12 个单元测试。"
+          ]
+        }
+      ],
+      "manageable": true,
+      "author": "vb2250158",
+      "scope": "global",
+      "upstreamRepository": "feiyang-dev/dsh-usage-plugin"
     }
   ]
 }

@@ -1,3 +1,11 @@
+# 0.6.7
+
+`catalog.json` 新增「用量与消耗」（`@feiyang666/dsh-usage-plugin`，本机 `vb2250158/dsh-usage-plugin` 的 fork），`scope` 为 `global`：它记录跨会话的调用与费用，并提供全局 HTTP 接口，不只影响单个会话。
+
+同版记录上游来源：该 fork 的 `package.json` 在 `dsh` 块写入 `upstreamRepository`，插件管理器（`lib/private-plugin-manager.js` 第 899 行）会把它存为清单里的 `upstreamRepository` 字段，用于区分 fork 与原始项目。
+
+验证：`npm run check`、`node --test`（44 项通过；14 项预先存在的模块解析失败未变，原因同 0.6.6）。
+
 # 0.6.6
 
 插件展示数据新增**作用范围分类**：`catalog.json` 每个条目必须带 `scope`（`session` 会话插件 / `global` 全局插件）和 `description`（一句话说明），`name` 固定为面向用户的显示名。“我的插件”页面把已安装插件按这两个分组展示，并在每组下写明该作用范围的含义；原有 13 个条目已完成分类和说明补全。
