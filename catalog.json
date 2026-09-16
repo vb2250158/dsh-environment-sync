@@ -502,7 +502,7 @@
     {
       "id": "usage-plugin",
       "name": "用量与消耗",
-      "packageName": "@feiyang666/dsh-usage-plugin",
+      "packageName": "dsh-usage-plugin",
       "repository": "vb2250158/dsh-usage-plugin",
       "loaderId": "usage-plugin",
       "description": "统计每次模型调用的 token、缓存命中与费用，价格取自 OpenRouter 目录。",

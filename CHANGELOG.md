@@ -1,3 +1,16 @@
+# 0.6.8
+
+跟随 `dsh-usage-plugin` 改名：`catalog.json` 里该条目的 `packageName` 由
+`@feiyang666/dsh-usage-plugin` 改为 `dsh-usage-plugin`。`id`、`loaderId`、`repository`
+都不动——它仍然是 patch 里的 `usage-plugin` 行与 `vb2250158/dsh-usage-plugin` 仓库。
+
+为什么必须跟着改：`private-plugin-manager.js` 用 `catalog.get(installed.name)` 查表，而
+`installed.name` 取已安装包的 `package.json.name`。登记名与实际不符时查表落空，条目降级为
+`discoveredPluginStatus`：显示名变成包名、没有说明与更新日志，并且 `manageable: false`，
+在「我的插件」页面失去可管理入口。
+
+验证：改名后 `node --test`、以及 profile 内 `catalog.get('dsh-usage-plugin')` 命中。
+
 # 0.6.7
 
 `catalog.json` 新增「用量与消耗」（`@feiyang666/dsh-usage-plugin`，本机 `vb2250158/dsh-usage-plugin` 的 fork），`scope` 为 `global`：它记录跨会话的调用与费用，并提供全局 HTTP 接口，不只影响单个会话。
