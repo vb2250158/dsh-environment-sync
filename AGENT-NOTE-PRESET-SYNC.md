@@ -9,3 +9,5 @@ Git 保存每个预设文件的历史，上传路径、冲突选择和应用恢�
 链接、特殊文件、路径越界、跨平台歧义文件名和已知凭据或运行数据目录会被拒绝。预设属于受信任配置；此路径校验不识别任意文本里的密钥或机器地址。用户须把明文凭据、聊天和机器配置放在预设目录之外。
 
 相关验证位于 `tests/agent-preset-sync.test.mjs`、`tests/environment-workflow.test.mjs` 与 `tests/environment-apply.test.mjs`，覆盖隔离 Home 往返、二进制资产、删除、旧快照、预检拒绝、实际 Git 克隆冲突与应用失败恢复。
+
+0.7.1 的 Home 基线 `.dsh-agent-presets-sync-baseline.json` 仅记录本机已导出或导入的文件。首次升级时，旧管理器已经获取却尚未应用的远端文件保留到首次导入，不能因本机缺少它们就写删除状态。基线不上传 Git，导入时与预设文件一起纳入恢复记录。

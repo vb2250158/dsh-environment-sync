@@ -59,6 +59,23 @@ test('legacy snapshots leave local user presets intact', () => fixture(async ({ 
   await assert.rejects(readFile(join(target, '.agent-presets/coordinator/agent.cordis.yml')), { code: 'ENOENT' })
 }))
 
+test('an existing computer upgrading its manager retains remote presets until first application', () => fixture(async ({ target, data, options }) => {
+  await exportPrivateEnvironment(options)
+  await write(join(target, 'settings.yaml'), 'agent-presets:\n  default: local-only\n')
+  await write(join(target, 'profiles/web/package.json'), '{}')
+  await write(join(target, '.agent-presets/local-only/agent.cordis.yml'), '[]\n')
+  const targetOptions = { ...options, dshHomePath: target }
+  const exported = await exportPrivateEnvironment(targetOptions)
+  assert.equal(exported.manifest.agentPresets.deleted.length, 0)
+  assert.equal(exported.manifest.agentPresets.files.length, 3)
+  await importPrivateEnvironment(targetOptions)
+  assert.equal(await readFile(join(target, '.agent-presets/coordinator/preset.yml'), 'utf8'), 'name: 协调模式\norder: 50\n')
+  await rm(join(target, '.agent-presets/coordinator'), { recursive: true })
+  const removed = await exportPrivateEnvironment(targetOptions)
+  assert.equal(removed.manifest.agentPresets.deleted.length, 2)
+  assert.equal(removed.manifest.agentPresets.files.length, 1)
+}))
+
 test('missing assets, invalid YAML and escaped manifest paths fail before changing Home', () => fixture(async ({ target, data, options }) => {
   await exportPrivateEnvironment(options)
   await write(join(target, 'settings.yaml'), 'theme: local\n')
