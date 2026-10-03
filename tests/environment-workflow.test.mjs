@@ -46,3 +46,50 @@ test('two real Git clones preserve changes, resolve conflicts and resume failed 
     assert.equal(git(b, 'status', '--porcelain'), '')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+test('preset files upload, merge, resolve file conflicts and propagate deletion through Git', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-preset-git-'))
+  const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  try {
+    const remote = join(root, 'remote.git'), a = join(root, 'a'), b = join(root, 'b')
+    mkdirSync(remote)
+    git(remote, 'init', '--bare', '--initial-branch=main')
+    git(root, 'clone', '--config', 'core.autocrlf=false', remote, a)
+    writeFileSync(join(a, 'settings.yaml'), 'theme: blue\n')
+    git(a, 'add', 'settings.yaml')
+    git(a, '-c', 'user.name=Test', '-c', 'user.email=test@localhost', 'commit', '-m', 'initial')
+    git(a, 'push', '-u', 'origin', 'main')
+    git(root, 'clone', '--config', 'core.autocrlf=false', remote, b)
+    const computers = [a, b].map(repository => ({ repository, home: join(root, repository === a ? 'home-a' : 'home-b'), profile: 'web' }))
+    const path = '.agent-presets/sample/agent.cordis.yml'
+    const asset = '.agent-presets/sample/说明.md'
+    let localA = '[]\n', localB = '', deleted = false
+    const run = (index, upload) => synchronizeEnvironment({ ...computers[index], upload,
+      exportSnapshot: async () => {
+        const repository = computers[index].repository
+        if (index === 0 && deleted) { rmSync(join(repository, path)); rmSync(join(repository, asset)); return }
+        mkdirSync(join(repository, '.agent-presets/sample'), { recursive: true })
+        writeFileSync(join(repository, path), index === 0 ? localA : localB)
+        writeFileSync(join(repository, asset), '# 可携带说明\n')
+      },
+      applySnapshot: async () => {
+        if (index === 1) localB = readFileSync(join(b, path), 'utf8')
+      },
+    })
+    await run(0, true)
+    await run(1, false)
+    assert.equal(localB, '[]\n')
+    localA = '- id: remote\n'; localB = '- id: local\n'
+    await run(0, true)
+    const conflict = await run(1, false)
+    assert.deepEqual(conflict.conflicts, [path])
+    await chooseEnvironmentConflict({ ...computers[1], path, side: 'remote' })
+    await run(1, true)
+    assert.equal(localB, '- id: remote\n')
+    assert.equal(git(b, 'show', `HEAD:${asset}`), '# 可携带说明')
+    deleted = true
+    await run(0, true)
+    assert.equal(git(a, 'ls-files', '--', '.agent-presets'), '')
+    assert.equal(git(a, 'status', '--porcelain'), '')
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

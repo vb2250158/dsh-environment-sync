@@ -7,6 +7,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseDocument, stringify } from 'yaml'
+import { exportAgentPresets, prepareAgentPresets } from '../lib/agent-preset-sync.js'
 
 export const PRIVATE_ENVIRONMENT_SCHEMA_VERSION = 2
 export const PRIVATE_SYNC_KEY_FILENAME = 'private-sync.key'
@@ -187,6 +188,7 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const inventory = profileInventory(profileManifest)
   const previousManifestSource = await readText(paths.manifest)
   const previousManifest = previousManifestSource === '' ? {} : JSON.parse(previousManifestSource)
+  const agentPresets = await exportAgentPresets(dshHome, paths.root, previousManifest.agentPresets)
 
   await writeAtomic(paths.settings, stringify(portableSettings))
   const included = {
@@ -220,6 +222,7 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const manifest = {
     schemaVersion: PRIVATE_ENVIRONMENT_SCHEMA_VERSION,
     credentialsFormat: 'files-v1',
+    agentPresets,
     deleted,
     profile: safeProfile,
     bundles: inventory.bundles,
@@ -249,6 +252,8 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
   const localOverlay = deepMerge(pickMachineSettings(currentSettings), localOverlaySource === '' ? {} : parseMapping(localOverlaySource, 'Machine-local DSH settings overlay'))
   const writes = [{ path: join(dshHome, 'settings.yaml'), contents: stringify(deepMerge(sharedSettings(snapshotSettings, MACHINE_SETTINGS), localOverlay)) }]
   const imported = {}
+  imported.agentPresets = Object.hasOwn(manifest, 'agentPresets')
+  if (imported.agentPresets) writes.push(...await prepareAgentPresets(dshHome, paths.root, manifest.agentPresets))
   for (const [key, target] of Object.entries({ instructions: join(dshHome, 'AGENTS.md'), homePatch: join(dshHome, 'cordis.patch.yml'), profilePatch: join(profileDir, 'cordis.patch.yml') })) {
     if (typeof manifest.included?.[key] !== 'boolean') throw new TypeError(`Private environment inclusion flag is missing: ${key}`)
     imported[key] = manifest.included[key]
@@ -302,7 +307,7 @@ export async function importPrivateEnvironment(options = {}) {
   const prepared = await preparePrivateEnvironment(options)
   const previous = await Promise.all(prepared.writes.map(async entry => {
     try {
-      return { ...entry, contents: await readFile(entry.path, 'utf8') }
+      return { ...entry, contents: await readFile(entry.path), mode: (await stat(entry.path)).mode & 0o777 }
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error
       return { ...entry, contents: null }
