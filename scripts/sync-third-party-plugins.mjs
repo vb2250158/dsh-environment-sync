@@ -473,10 +473,16 @@ export async function syncThirdPartyPlugins(options) {
   const release = await lockfile.lock(profileDir, { lockfilePath: lockPath })
   const journalPath = join(profileDir, '.dsh-plugin-operation.json')
   const restore = async journal => {
-    if (journal.schemaVersion !== 1 || RESTORE_FILES.some(name => typeof journal.previous?.[name] !== 'string' && journal.previous?.[name] !== null)) {
+    if (journal.schemaVersion !== 1 || (journal.installationRequired !== undefined && typeof journal.installationRequired !== 'boolean') || RESTORE_FILES.some(name => typeof journal.previous?.[name] !== 'string' && journal.previous?.[name] !== null)) {
       throw new Error('Plugin recovery record is invalid; the profile was not changed')
     }
     restoreProfileFiles(profileDir, journal.previous)
+    // A completed no-op changed only sync metadata; node_modules needs no installer.
+    // Interrupted and older records retain the conservative installation path.
+    if (journal.installationRequired === false) {
+      writeJsonAtomically(journalPath, { ...journal, state: 'restored' })
+      return
+    }
     const sourceRoot = resolveSourceRoot(options.sourceRoot ?? '')
     const restored = await run(packageManagerCommand(), ['--dir', sourceRoot, 'dsh', 'plugin', '--profile', profileName(options.profile ?? 'web'), 'install', journal.previous['pnpm-lock.yaml'] === null ? '--no-frozen-lockfile' : '--frozen-lockfile'], {
       spawnCommand: options.spawnCommand ?? spawn,
@@ -505,7 +511,7 @@ export async function syncThirdPartyPlugins(options) {
     writeJsonAtomically(journalPath, journal)
     try {
       const result = await applyThirdPartyPlugins({ ...options, packageManifests })
-      writeJsonAtomically(journalPath, { ...journal, state: 'succeeded' })
+      writeJsonAtomically(journalPath, { ...journal, state: 'succeeded', installationRequired: result.commands.length > 0 })
       return result
     } catch (error) {
       try {

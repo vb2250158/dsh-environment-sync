@@ -1,5 +1,9 @@
 # 0.7.1
 
+## 0.7.2 — 2026-10-03
+
+- Skip dependency reinstallation when rolling back a completed plugin no-op. Configuration and preset verification failures now restore their saved files without requiring an otherwise unused harness source directory. Interrupted and legacy installation records still use the official installer.
+
 已有电脑首次升级管理器时，保留尚未在本机应用的远端预设；本机同步基线只把已经导出或导入的文件认作可删除对象，避免旧管理器未恢复预设却被误判为用户删除。基线保存在 Home，纳入应用恢复，不上传 Git。
 
 验证增加旧管理器升级后的首次导出、首次恢复与后续真实删除。

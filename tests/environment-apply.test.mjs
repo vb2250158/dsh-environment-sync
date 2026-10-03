@@ -52,5 +52,8 @@ test('failed verification restores preset definitions, deleted binary assets and
     assert.equal(existsSync(join(home, '.agent-presets/sample/new.bin')), false)
     assert.equal(readFileSync(join(home, 'settings.yaml'), 'utf8'), 'theme: original\n')
     assert.equal(JSON.parse(readFileSync(join(home, 'profiles/web/.dsh-environment-restore.json'))).state, 'restored')
+    const pluginRecovery = JSON.parse(readFileSync(join(home, 'profiles/web/.dsh-plugin-operation.json')))
+    assert.equal(pluginRecovery.installationRequired, false)
+    assert.equal(pluginRecovery.state, 'restored')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
