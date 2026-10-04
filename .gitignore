@@ -13,4 +13,5 @@ tests/rabi-default-persona.test.mjs
 tests/theme-blue-client.test.mjs
 tests/theme-token-audit.test.mjs
 tests/turn-continuation-client.test.mjs
-docs/
+docs/*
+!docs/dsh-0.2-compatibility.md
