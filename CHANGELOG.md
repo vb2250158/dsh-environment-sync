@@ -1,5 +1,9 @@
 # 0.7.1
 
+## 0.7.5
+
+- Migrate onboarding and Jev configuration ids when importing legacy shared settings into a DSH 0.2 profile, and omit the retired blue-theme selector.
+
 ## 0.7.4
 
 - Refresh the frozen recovery lockfile for the DSH 0.2 runtime and disable implicit peer installation in maintenance clones.

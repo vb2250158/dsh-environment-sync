@@ -44,11 +44,13 @@ function parseMapping(source, description) {
 /** Normalize settings namespaces renamed by the DSH 0.2 profile migration. */
 function normalizeSettings(settings) {
   const result = { ...settings }
-  for (const [oldName, newName] of [['llm-provider-visibility', 'provider-visibility'], ['agent-presets', 'agent-preset-registry']]) {
+  for (const [oldName, newName] of [['llm-provider-visibility', 'provider-visibility'], ['agent-presets', 'agent-preset-registry'], ['ui-onboarding', 'ui-settings-general'], ['jev-context-gate', 'dsh-jev-context-gate']]) {
     if (!Object.hasOwn(result, oldName)) continue
     result[newName] = deepMerge(result[oldName], result[newName] ?? {})
     delete result[oldName]
   }
+  // The blue foundation has no selectable-theme configuration in the current runtime.
+  delete result['private-theme-blue']
   const preset = result['agent-preset-registry']
   if (preset && Object.hasOwn(preset, 'default')) {
     result['agent-preset-registry'] = { ...preset, selectedDefault: preset.selectedDefault ?? preset.default }
