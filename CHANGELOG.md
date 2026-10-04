@@ -1,5 +1,9 @@
 # 0.7.1
 
+## 0.7.4
+
+- Refresh the frozen recovery lockfile for the DSH 0.2 runtime and disable implicit peer installation in maintenance clones.
+
 ## 0.7.3
 
 - Update DSH compatibility requirements and interfaces for 0.2.1-alpha.1.
