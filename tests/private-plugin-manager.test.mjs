@@ -211,7 +211,7 @@ test('子进程输出会裁剪为可显示的诊断摘要', async () => {
 
 test('公开包直接安装 Host 启动所需的 DSH 运行依赖', () => {
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-  for (const name of ['@deepseek-ai/cordis', '@deepseek-ai/dsh-invariants', '@deepseek-ai/dsh-typert-protocol']) {
-    assert.equal(typeof manifest.dependencies[name], 'string')
+  for (const name of ['@deepseek-ai/cordis', '@deepseek-ai/dsh-typert-protocol']) {
+    assert.equal(typeof (manifest.dependencies[name] ?? manifest.peerDependencies[name]), 'string')
   }
 })

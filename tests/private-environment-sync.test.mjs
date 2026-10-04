@@ -18,6 +18,33 @@ async function write(path, contents) {
   await writeFile(path, contents)
 }
 
+test('新版配置从 profile 导出并保留本机路径，不重新创建 settings.yaml', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-profile-config-'))
+  const home = join(root, 'home'), target = join(root, 'target'), data = join(root, 'data')
+  try {
+    await write(join(home, 'profiles/web/package.json'), JSON.stringify({ dependencies: {}, dsh: { profile: { bundles: [] } } }))
+    await write(join(home, 'profiles/web/cordis.patch.yml'), '- id: chat-enhancement\n  config:\n    language: zh\n- id: nas-workspace-support\n  config:\n    openPluginsRoot: C:/source-machine\n')
+    const exported = await exportPrivateEnvironment({ dshHomePath: home, dataRootPath: data, encryptionSecret: 'test-key' })
+    assert.equal(exported.manifest.settingsStorage, 'profile-config')
+    assert.doesNotMatch(await readFile(join(data, 'profiles/web/cordis.patch.yml'), 'utf8'), /source-machine/)
+    await write(join(target, 'profiles/web/cordis.patch.yml'), '- id: nas-workspace-support\n  config:\n    openPluginsRoot: C:/target-machine\n- id: webserver\n  config:\n    port: 3199\n')
+    await importPrivateEnvironment({ dshHomePath: target, dataRootPath: data, encryptionSecret: 'test-key' })
+    const patch = parse(await readFile(join(target, 'profiles/web/cordis.patch.yml'), 'utf8'))
+    assert.equal(patch.find(row => row.id === 'chat-enhancement').config.language, 'zh')
+    assert.equal(patch.find(row => row.id === 'nas-workspace-support').config.openPluginsRoot, 'C:/target-machine')
+    assert.equal(patch.find(row => row.id === 'webserver').config.port, 3199)
+    await assert.rejects(readFile(join(target, 'settings.yaml')), { code: 'ENOENT' })
+    await write(join(data, 'settings.yaml'), 'llm-provider-visibility:\n  hiddenProviders: [legacy]\nagent-presets:\n  default: coding\n')
+    await importPrivateEnvironment({ dshHomePath: target, dataRootPath: data, encryptionSecret: 'test-key' })
+    const migrated = parse(await readFile(join(target, 'profiles/web/cordis.patch.yml'), 'utf8'))
+    assert.deepEqual(migrated.find(row => row.id === 'provider-visibility').config.hiddenProviders, ['legacy'])
+    assert.equal(migrated.find(row => row.id === 'agent-preset-registry').config.selectedDefault, 'coding')
+    assert.equal(migrated.some(row => row.id === 'agent-presets'), false)
+    await write(join(home, 'profiles/web/cordis.patch.yml'), 'invalid: mapping\n')
+    await assert.rejects(exportPrivateEnvironment({ dshHomePath: home, dataRootPath: data, encryptionSecret: 'test-key' }), /Profile patch must be an array/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('私有环境导出记录完整设置、插件组合、启停补丁和加密凭据', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-private-environment-'))
   const home = join(root, 'home')

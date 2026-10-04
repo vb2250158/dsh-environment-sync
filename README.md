@@ -1,5 +1,7 @@
 # dsh-environment-sync
 
+This release requires DSH 0.2.1-alpha.1 or a compatible 0.2 release. See [compatibility details](docs/dsh-0.2-compatibility.md).
+
 通过 Git 同步整套 DSH 插件与共享配置。公开和私有插件均使用固定提交，私有环境仓库保存清单、配置和加密凭据；聊天、附件、运行日志和本机资料库不上传。
 
 ## 通用注意事项

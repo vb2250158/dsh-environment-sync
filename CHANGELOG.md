@@ -1,5 +1,9 @@
 # 0.7.1
 
+## 0.7.3
+
+- Update DSH compatibility requirements and interfaces for 0.2.1-alpha.1.
+
 ## 0.7.2 — 2026-10-03
 
 - Skip dependency reinstallation when rolling back a completed plugin no-op. Configuration and preset verification failures now restore their saved files without requiring an otherwise unused harness source directory. Interrupted and legacy installation records still use the official installer.

@@ -348,10 +348,15 @@ export function alignOfficialRuntime(profileDir, sourceRoot, packageManifests = 
     }
   }
   for (const manifest of packageManifests) visit(manifest)
+  // Removed upstream packages must not survive a source-runtime upgrade.
+  for (const name of Object.keys(profile.dependencies ?? {})) {
+    if (isOfficialPackage(name) && !official.has(name)) delete profile.dependencies[name]
+  }
   for (const name of required) profile.dependencies[name] = overrides[name]
   writeJsonAtomically(join(profileDir, 'package.json'), profile)
   const config = existsSync(path) ? parse(readFileSync(path, 'utf8')) : { packages: ['.'], nodeLinker: 'hoisted', autoInstallPeers: false }
-  const next = stringify({ ...config, overrides: { ...config.overrides, ...overrides } })
+  const retainedOverrides = Object.fromEntries(Object.entries(config.overrides ?? {}).filter(([name]) => !isOfficialPackage(name) || official.has(name)))
+  const next = stringify({ ...config, overrides: { ...retainedOverrides, ...overrides } })
   if (existsSync(path) && readFileSync(path, 'utf8') === next) return false
   writeFileSync(path, next)
   return true

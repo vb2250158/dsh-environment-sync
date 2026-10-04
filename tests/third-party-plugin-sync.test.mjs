@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import lockfile from 'proper-lockfile'
-import { exportThirdPartyPlugins, inspectThirdPartyPlugins, PLUGIN_BASELINE_FILENAME, readInstalledThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
+import { alignOfficialRuntime, exportThirdPartyPlugins, inspectThirdPartyPlugins, PLUGIN_BASELINE_FILENAME, readInstalledThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true })
@@ -49,6 +49,23 @@ async function writeProfile(profileDir, dependencies, bundles = []) {
     dsh: { profile: { bundles } },
   })
 }
+
+test('升级源码运行时移除已删除官方包，保留第三方覆盖并补齐新接口依赖', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-runtime-align-'))
+  const profileDir = join(root, 'profile'), source = join(root, 'source')
+  try {
+    await writeProfile(profileDir, { '@deepseek-ai/dsh-client-runtime': 'old', 'third-party': '1.0.0' })
+    await writeJson(join(source, 'packages/client/ui-slots/package.json'), { name: '@deepseek-ai/dsh-client-ui-slots', version: '0.2.1-alpha.1' })
+    await writeFile(join(profileDir, 'pnpm-workspace.yaml'), 'overrides:\n  third-party: 1.0.0\n  "@deepseek-ai/dsh-client-runtime": old\n')
+    alignOfficialRuntime(profileDir, source, [{ peerDependencies: { '@deepseek-ai/dsh-client-ui-slots': '*' } }])
+    const profile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+    assert.equal(Object.hasOwn(profile.dependencies, '@deepseek-ai/dsh-client-runtime'), false)
+    assert.match(profile.dependencies['@deepseek-ai/dsh-client-ui-slots'], /^link:/)
+    const workspace = await readFile(join(profileDir, 'pnpm-workspace.yaml'), 'utf8')
+    assert.doesNotMatch(workspace, /dsh-client-runtime/)
+    assert.match(workspace, /third-party: 1.0.0/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 test('首次拉取空清单保留未接管插件，已接管插件的本机修改阻止远端删除', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-ownership-'))
