@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -8,7 +8,9 @@
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./typert": "./lib/typert.host.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "catalog.json",
@@ -31,7 +33,10 @@
     "SECURITY.md",
     "LICENSE",
     "CHANGELOG.md",
-    "docs"
+    "docs",
+    "locale",
+    "icon.svg",
+    "ICON_LICENSE.txt"
   ],
   "dsh": {
     "bundle": {
@@ -88,5 +93,6 @@
   "homepage": "https://github.com/vb2250158/dsh-environment-sync#readme",
   "bugs": {
     "url": "https://github.com/vb2250158/dsh-environment-sync/issues"
-  }
+  },
+  "icon": "./icon.svg"
 }

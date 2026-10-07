@@ -1,5 +1,10 @@
 # 0.7.1
 
+## 0.7.6 (2026-10-07)
+
+- 为插件列表提供中英文名称与说明，并发布独立的 SVG 图标。
+- Publish English and Chinese plugin display metadata and a dedicated SVG icon.
+
 ## 0.7.5
 
 - Migrate onboarding and Jev configuration ids when importing legacy shared settings into a DSH 0.2 profile, and omit the retired blue-theme selector.

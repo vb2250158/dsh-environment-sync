@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Environment sync",
+    "description": "Sync DSH environments, configuration and plugins across computers."
+  }
+}

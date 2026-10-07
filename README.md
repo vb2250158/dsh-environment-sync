@@ -134,3 +134,7 @@ npm pack --dry-run
 MIT
 
 插件同步没有执行安装命令时，0.7.2 的配置回滚只恢复保存的文件；中断安装和旧恢复记录仍通过官方安装器恢复依赖。
+
+## Plugin display metadata
+
+The plugin list shows **Environment sync** in English and **环境同步** in Chinese, following the DSH interface language. `locale/en.json` and `locale/zh.json` provide the title and description; `icon.svg` supplies self-contained artwork. The package exports and publishes these resources. The icon is adapted from Lucide; see [ICON_LICENSE.txt](ICON_LICENSE.txt).
