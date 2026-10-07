@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -51,7 +51,8 @@
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-session"
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
       ],
       "platform": "web",
       "immediately": true
@@ -82,7 +83,8 @@
     "@deepseek-ai/schemastery": ">=3.18.5-alpha.1 <4.0.0",
     "@deepseek-ai/dsh-api-session-controller": ">=0.2.1-alpha.1 <0.3.0",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.1-alpha.1 <0.3.0",
-    "@deepseek-ai/dsh-client-ui-session": ">=0.2.1-alpha.1 <0.3.0"
+    "@deepseek-ai/dsh-client-ui-session": ">=0.2.1-alpha.1 <0.3.0",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": ">=0.2.1-alpha.1 <0.3.0"
   },
   "author": "vb2250158",
   "license": "MIT",

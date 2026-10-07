@@ -54,7 +54,7 @@ fork 类插件通常同时存在自己的仓库与原作者远端，而分支的
 ./scripts/bootstrap-environment.ps1 -SourceRoot <DSH源码目录> -Repository https://github.com/<owner>/<private-environment>.git
 ```
 
-Git 必须已获得私有仓库读取权限。首次进入“设置 → 我的插件”，填写与原电脑相同的同步密钥，然后点击“拉取并应用”。密钥只保存在本机 `private-sync.key`，通过仓库之外的安全渠道传递。安装目录中的恢复运行时须保留；本机 `Recover DSH.vbs` 提供不依赖 DSH 页面启动的恢复窗口。
+Git 必须已获得私有仓库读取权限。首次进入“插件 → 环境同步 → 配置”，填写与原电脑相同的同步密钥，然后点击“拉取并应用”。密钥只保存在本机 `private-sync.key`，通过仓库之外的安全渠道传递。安装目录中的恢复运行时须保留；本机 `Recover DSH.vbs` 提供不依赖 DSH 页面启动的恢复窗口。
 
 ## 日常操作
 
@@ -138,3 +138,7 @@ MIT
 ## Plugin display metadata
 
 The plugin list shows **Environment sync** in English and **环境同步** in Chinese, following the DSH interface language. `locale/en.json` and `locale/zh.json` provide the title and description; `icon.svg` supplies self-contained artwork. The package exports and publishes these resources. The icon is adapted from Lucide; see [ICON_LICENSE.txt](ICON_LICENSE.txt).
+
+## 插件设置入口
+
+在插件列表中点击本插件进入详情页，即可使用原有配置和操作界面；设置菜单不再重复显示该插件入口。

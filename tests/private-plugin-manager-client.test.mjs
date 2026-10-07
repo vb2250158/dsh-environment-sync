@@ -61,7 +61,7 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   const configure = mounted[0].descriptors.find(item => item.method === 'configure')
   assert.deepEqual(configure.parameters[0].codec.create().parse({ dataRemoteUrl: 'x', dataLocalPath: 'y' }), { dataRemoteUrl: 'x', dataLocalPath: 'y' })
   assert.throws(() => configure.parameters[0].codec.create().parse({ remoteUrl: 'x', localPath: 'y' }), /private data repository/)
-  assert.deepEqual(registered.map(item => item.options.id), ['my-plugins'])
+  assert.deepEqual(registered.map(item => [item.options.name, item.options.key]), [['plugins.bundle.config', 'dsh-environment-sync']])
   const rendered = registered[0].component(registered[0].options.inject())
   assert.equal(rendered.type, 'div')
   const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../lib/client.js', import.meta.url), 'utf8'))
@@ -145,8 +145,3 @@ test('未分类插件降级为全局插件，不会被显示成会话插件', as
   assert.match(rendered, /全局插件（2）/)
   assert.doesNotMatch(rendered, /会话插件/)
 })
-
-
-
-
-
