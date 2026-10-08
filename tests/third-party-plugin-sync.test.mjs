@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import lockfile from 'proper-lockfile'
+import { parse } from 'yaml'
 import { alignOfficialRuntime, exportThirdPartyPlugins, inspectThirdPartyPlugins, PLUGIN_BASELINE_FILENAME, readInstalledThirdPartyPlugins, readThirdPartyManifest, restartMarkerPath, syncThirdPartyPlugins } from '../scripts/sync-third-party-plugins.mjs'
 
 async function writeJson(path, value) {
@@ -49,6 +50,109 @@ async function writeProfile(profileDir, dependencies, bundles = []) {
     dsh: { profile: { bundles } },
   })
 }
+
+function desktopManager(profileDir, calls, fail = () => false) {
+  return {
+    async installBundle(specifier, options) {
+      assert.equal(parse(await readFile(join(profileDir, 'pnpm-workspace.yaml'), 'utf8')).saveExact, true)
+      const split = specifier.lastIndexOf('@')
+      const name = specifier.slice(0, split), version = specifier.slice(split + 1)
+      calls.push({ action: 'add', name, version, options })
+      if (fail(name, version)) return { application: 'failed', error: { code: 'operation-error' } }
+      const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+      manifest.dependencies[name] = version
+      await writeJson(join(profileDir, 'package.json'), manifest)
+      await writePlugin(profileDir, name, version)
+      return { bundle: name, application: 'restart-required' }
+    },
+    async removeBundle(name) {
+      calls.push({ action: 'remove', name })
+      const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+      delete manifest.dependencies[name]
+      await writeJson(join(profileDir, 'package.json'), manifest)
+      return { application: 'applied' }
+    },
+  }
+}
+
+test('Desktop 同步使用宿主安装器，保留官方依赖和 Web profile，不使用源码 CLI', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-sync-'))
+  const profileDir = join(root, 'profiles', 'desktop'), repositoryPath = join(root, 'private')
+  const calls = []
+  try {
+    await writeProfile(profileDir, { '@deepseek-ai/dsh-bundle-web': '0.2.1-alpha.1', 'desktop-plugin': '1.0.0' })
+    await writePlugin(profileDir, 'desktop-plugin', '1.0.0')
+    await writeProfile(join(root, 'profiles', 'web'), { 'web-plugin': '9.0.0' })
+    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 2, profile: 'desktop', plugins: [{ name: 'desktop-plugin', version: '2.0.0', specifier: 'desktop-plugin@2.0.0' }] })
+    const options = { profileDir, repositoryPath, profile: 'desktop', desktopManager: desktopManager(profileDir, calls), spawnCommand() { throw new Error('Desktop must not launch source CLI') } }
+    const result = await syncThirdPartyPlugins(options)
+    assert.equal(result.restartRequired, true)
+    assert.deepEqual(calls, [{ action: 'add', name: 'desktop-plugin', version: '2.0.0', options: { enabled: false } }])
+    assert.equal(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies['@deepseek-ai/dsh-bundle-web'], '0.2.1-alpha.1')
+    assert.equal(JSON.parse(await readFile(join(root, 'profiles/web/package.json'), 'utf8')).dependencies['web-plugin'], '9.0.0')
+    await assert.rejects(readFile(join(profileDir, 'pnpm-workspace.yaml')), { code: 'ENOENT' })
+    assert.equal((await syncThirdPartyPlugins(options)).commands.length, 0)
+    assert.equal(calls.length, 1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('Desktop 安装失败通过同一宿主恢复旧包和原始配置，恢复只涉及本次插件', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-rollback-'))
+  const profileDir = join(root, 'profiles/desktop'), repositoryPath = join(root, 'private'), calls = []
+  try {
+    await writeProfile(profileDir, { 'desktop-plugin': '1.0.0', 'unrelated-plugin': '3.0.0' }, ['desktop-plugin'])
+    await writePlugin(profileDir, 'desktop-plugin', '1.0.0')
+    await writePlugin(profileDir, 'unrelated-plugin', '3.0.0')
+    const before = await readFile(join(profileDir, 'package.json'), 'utf8')
+    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 2, profile: 'desktop', plugins: [
+      { name: 'desktop-plugin', version: '2.0.0', specifier: 'desktop-plugin@2.0.0' },
+      { name: 'failed-plugin', version: '1.0.0', specifier: 'failed-plugin@1.0.0' },
+    ] })
+    await assert.rejects(syncThirdPartyPlugins({ profileDir, repositoryPath, profile: 'desktop', desktopManager: desktopManager(profileDir, calls, name => name === 'failed-plugin') }), /failed-plugin failed/)
+    assert.equal(await readFile(join(profileDir, 'package.json'), 'utf8'), before)
+    assert.equal(JSON.parse(await readFile(join(profileDir, 'node_modules/desktop-plugin/package.json'), 'utf8')).version, '1.0.0')
+    assert.deepEqual(calls.map(({ action, name, version }) => ({ action, name, version })), [
+      { action: 'add', name: 'desktop-plugin', version: '2.0.0' },
+      { action: 'add', name: 'failed-plugin', version: '1.0.0' },
+      { action: 'add', name: 'desktop-plugin', version: '1.0.0' },
+    ])
+    assert.equal(JSON.parse(await readFile(join(profileDir, '.dsh-plugin-operation.json'), 'utf8')).state, 'restored')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('Desktop CLI 无宿主安装器时在创建 profile 或恢复记录之前拒绝', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-reject-'))
+  const profileDir = join(root, 'profiles/desktop')
+  try {
+    await assert.rejects(syncThirdPartyPlugins({ profileDir, repositoryPath: root, profile: 'desktop' }), /application-owned pluginManager/)
+    await assert.rejects(readFile(join(profileDir, '.dsh-plugin-operation.json')), { code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('Desktop 恢复可在新管理器实例重试，失败保留记录且不接管官方包', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-recover-'))
+  const profileDir = join(root, 'profiles/desktop'), repositoryPath = join(root, 'private'), calls = []
+  try {
+    await writeProfile(profileDir, { 'desktop-plugin': '1.0.0' })
+    await writePlugin(profileDir, 'desktop-plugin', '1.0.0')
+    await writeFile(join(profileDir, 'pnpm-workspace.yaml'), 'saveExact: false\nnodeLinker: hoisted\n')
+    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 2, profile: 'desktop', plugins: [{ name: 'desktop-plugin', version: '2.0.0', specifier: 'desktop-plugin@2.0.0' }] })
+    const options = { profileDir, repositoryPath, profile: 'desktop' }
+    await syncThirdPartyPlugins({ ...options, desktopManager: desktopManager(profileDir, calls) })
+    assert.equal(await readFile(join(profileDir, 'pnpm-workspace.yaml'), 'utf8'), 'saveExact: false\nnodeLinker: hoisted\n')
+    await assert.rejects(syncThirdPartyPlugins({ ...options, restoreOnly: true, desktopManager: desktopManager(profileDir, calls, (_name, version) => version === '1.0.0') }), /failed/)
+    assert.equal(JSON.parse(await readFile(join(profileDir, '.dsh-plugin-operation.json'), 'utf8')).state, 'restore-failed')
+    await syncThirdPartyPlugins({ ...options, restoreOnly: true, desktopManager: desktopManager(profileDir, calls) })
+    assert.equal(JSON.parse(await readFile(join(profileDir, 'node_modules/desktop-plugin/package.json'), 'utf8')).version, '1.0.0')
+    const path = join(profileDir, '.dsh-plugin-operation.json')
+    const record = JSON.parse(await readFile(path, 'utf8'))
+    record.desktopTargets = ['@deepseek-ai/dsh-bundle-web']
+    await writeJson(path, record)
+    const before = calls.length
+    await assert.rejects(syncThirdPartyPlugins({ ...options, restoreOnly: true, desktopManager: desktopManager(profileDir, calls) }), /targets are invalid/)
+    assert.equal(calls.length, before)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 test('升级源码运行时移除已删除官方包，保留第三方覆盖并补齐新接口依赖', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-runtime-align-'))

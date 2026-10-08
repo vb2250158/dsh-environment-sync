@@ -28,8 +28,8 @@ function writePackage(profileDir, name, version) {
   writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version, main: './index.js', dsh: { bundle: { patch: './cordis.patch.yml' } } }))
   writeFileSync(join(directory, 'index.js'), '')
 }
-function profile(home) {
-  const dir = join(home, 'profiles', 'web')
+function profile(home, name = 'web') {
+  const dir = join(home, 'profiles', name)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'package.json'), JSON.stringify({
     dependencies: {
@@ -176,6 +176,39 @@ test('取消重启会保留可读的待生效标记', async () => {
     assert.equal(typeof marker.deferredAt, 'string')
     assert.equal(status.restartRequired, true)
     assert.match(status.operation.message, /已缓存待生效更新/)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('管理器使用启动器提供的 profile 和 Home，保留显式 Web 自定义 profile', () => {
+  const ctx = new Context()
+  ctx.provide('profileContext', { name: 'desktop', home: 'C:/owned-home' })
+  const manager = new PrivatePluginManager(ctx)
+  assert.equal(manager.profile, 'desktop')
+  assert.equal(manager.dshHome, 'C:/owned-home')
+  assert.throws(() => new PrivatePluginManager(ctx, { profile: 'web' }), /application-owned/)
+  assert.throws(() => new PrivatePluginManager(new Context(), { profile: 'desktop' }), /application-owned/)
+  const web = new Context()
+  web.provide('profileContext', { name: 'web', home: 'C:/web-home' })
+  assert.equal(new PrivatePluginManager(web, { profile: 'custom' }).profile, 'custom')
+})
+
+test('桌面重启请求只写本 profile 待生效标记，不启动源码 Web Host', async () => {
+  const home = temporaryHome()
+  try {
+    const desktop = profile(home, 'desktop')
+    const web = profile(home)
+    const before = readFileSync(join(web, 'package.json'), 'utf8')
+    const ctx = new Context()
+    ctx.provide('profileContext', { name: 'desktop', home })
+    const manager = new PrivatePluginManager(ctx)
+    const status = await manager.restartEnvironment()
+    assert.equal(status.profile, 'desktop')
+    assert.equal(status.restartRequired, true)
+    assert.match(status.operation.message, /完全退出/)
+    assert.equal(JSON.parse(readFileSync(join(desktop, '.dsh-restart-required'), 'utf8')).profile, 'desktop')
+    assert.equal(existsSync(join(home, 'recovery-runtime')), false)
+    assert.equal(existsSync(join(web, '.dsh-restart-required')), false)
+    assert.equal(readFileSync(join(web, 'package.json'), 'utf8'), before)
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 

@@ -10,6 +10,7 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 
 export const THIRD_PARTY_MANIFEST_FILENAME = 'plugins.json'
 export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 2
@@ -372,8 +373,44 @@ function restoreExactDependencySpecifiers(profileDir, plugins) {
   writeJsonAtomically(path, manifest)
 }
 
+/** Refuse source-CLI mutations of a Desktop-owned profile. */
+export function requireDesktopManager(manager) {
+  if (typeof manager?.installBundle !== 'function' || typeof manager?.removeBundle !== 'function') {
+    throw new Error('Desktop synchronization requires the application-owned pluginManager; source CLI installation is not supported')
+  }
+}
+
+async function withExactDesktopVersions(profileDir, operation) {
+  const path = join(profileDir, 'pnpm-workspace.yaml')
+  const original = existsSync(path) ? readFileSync(path, 'utf8') : null
+  const before = original === null ? {} : parse(original)
+  if (before === null || typeof before !== 'object' || Array.isArray(before)) throw new Error('Desktop pnpm workspace settings must be an object')
+  writeFileSync(path, stringify({ ...before, saveExact: true }))
+  try { return await operation() } finally {
+    const after = parse(readFileSync(path, 'utf8'))
+    if (after === null || typeof after !== 'object' || Array.isArray(after)) throw new Error('Desktop installer left invalid workspace settings; recovery record retained')
+    if (Object.hasOwn(before, 'saveExact')) after.saveExact = before.saveExact
+    else delete after.saveExact
+    if (isDeepStrictEqual(after, before)) {
+      if (original === null) unlinkSync(path)
+      else writeFileSync(path, original)
+    } else writeFileSync(path, stringify(after))
+  }
+}
+
+async function changeDesktopBundle(manager, action, name, specifier, profileDir) {
+  const result = await withExactDesktopVersions(profileDir, () => action === 'add'
+    ? manager.installBundle(specifier, { enabled: false })
+    : manager.removeBundle(name))
+  if (!['applied', 'restart-required'].includes(result.application)) {
+    throw new Error(`Desktop plugin ${action} ${name} failed: ${result.error?.diagnostic ?? result.error?.code ?? result.packageResult?.output ?? result.application}`)
+  }
+  if (action === 'add' && result.bundle !== name) throw new Error(`Desktop installer returned an unexpected bundle for ${name}`)
+  return { name, action, ok: true, application: result.application }
+}
+
 /** Install the manifest's plugins and remove stale profile plugins. */
-async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn, packageManifests = [] }) {
+async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn, packageManifests = [], desktopManager }) {
   const safeProfile = profileName(profile)
   if (!existsSync(manifestPath(repositoryPath))) throw new Error('Plugin manifest is missing; no plugins were changed')
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
@@ -387,6 +424,18 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   if (changed.length === 0 && removed.length === 0) {
     recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
     return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands: [], restartRequired: existsSync(restartMarkerPath(profileDir)) }
+  }
+  if (safeProfile === 'desktop') {
+    const commands = []
+    for (const plugin of changed) {
+      commands.push(await changeDesktopBundle(desktopManager, 'add', plugin.name, plugin.specifier, profileDir))
+      const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true }).find(item => item.name === plugin.name)
+      if (installed?.version !== plugin.version || installed.requested !== (sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version)) throw new Error(`Desktop plugin ${plugin.name} did not retain its exact recorded version and source`)
+    }
+    for (const name of removed) commands.push(await changeDesktopBundle(desktopManager, 'remove', name, undefined, profileDir))
+    writeJsonAtomically(restartMarkerPath(profileDir), { profile: safeProfile, requestedAt: new Date().toISOString() })
+    recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
+    return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
   }
   const dshSourceRoot = resolveSourceRoot(sourceRoot)
   alignOfficialRuntime(profileDir, dshSourceRoot, packageManifests)
@@ -454,8 +503,8 @@ async function preflightGitPlugins(profileDir, plugins, installed, spawnCommand)
   return manifests
 }
 
-function restoreProfileFiles(profileDir, previous) {
-  for (const filename of RESTORE_FILES) {
+function restoreProfileFiles(profileDir, previous, filenames = RESTORE_FILES) {
+  for (const filename of filenames) {
     const path = join(profileDir, filename)
     const contents = previous[filename]
     if (contents === null) {
@@ -469,6 +518,8 @@ function restoreProfileFiles(profileDir, previous) {
 /** Serialize plugin installation and restore the previous profile after failure or interruption. */
 export async function syncThirdPartyPlugins(options) {
   const profileDir = resolve(options.profileDir)
+  const desktop = profileName(options.profile ?? 'web') === 'desktop'
+  if (desktop) requireDesktopManager(options.desktopManager)
   // Reject missing input before creating operation records or profile directories.
   if (!options.restoreOnly) {
     if (!existsSync(manifestPath(options.repositoryPath))) throw new Error('Plugin manifest is missing; no plugins were changed')
@@ -480,6 +531,35 @@ export async function syncThirdPartyPlugins(options) {
   const restore = async journal => {
     if (journal.schemaVersion !== 1 || (journal.installationRequired !== undefined && typeof journal.installationRequired !== 'boolean') || RESTORE_FILES.some(name => typeof journal.previous?.[name] !== 'string' && journal.previous?.[name] !== null)) {
       throw new Error('Plugin recovery record is invalid; the profile was not changed')
+    }
+    if (desktop) {
+      if (!Array.isArray(journal.desktopTargets) || journal.desktopTargets.some(name => typeof name !== 'string' || !/^(?:@[a-z0-9_.-]+\/)?[a-z0-9][a-z0-9_.-]*$/.test(name) || isOfficialPackage(name))
+        || !Array.isArray(journal.desktopPrevious) || journal.desktopPrevious.some(item => typeof item?.name !== 'string' || typeof item?.version !== 'string')) {
+        throw new Error('Desktop plugin recovery targets are invalid; the profile was not changed')
+      }
+      const saved = JSON.parse(journal.previous['package.json']).dependencies ?? {}
+      if (saved === null || typeof saved !== 'object' || Array.isArray(saved)
+        || new Set(journal.desktopTargets).size !== journal.desktopTargets.length
+        || new Set(journal.desktopPrevious.map(item => item.name)).size !== journal.desktopPrevious.length
+        || journal.desktopTargets.some(name => saved[name] !== undefined && (typeof saved[name] !== 'string' || !journal.desktopPrevious.some(item => item.name === name && item.version !== '')))) {
+        throw new Error('Desktop plugin recovery dependencies are invalid; the profile was not changed')
+      }
+      restoreProfileFiles(profileDir, journal.previous, ['pnpm-workspace.yaml'])
+      for (const name of [...journal.desktopTargets].reverse()) {
+        const current = profileManifest(profileDir).dependencies?.[name]
+        if (saved[name] === undefined) {
+          if (current !== undefined) await changeDesktopBundle(options.desktopManager, 'remove', name, undefined, profileDir)
+        } else {
+          const installed = current === undefined ? undefined : packageInfo(profileDir, name).manifest
+          const previousRecord = journal.desktopPrevious?.find(item => item.name === name)
+          if (current === saved[name] && installed?.version === previousRecord?.version) continue
+          const specifier = /^(?:git\+|github:)/.test(saved[name]) ? saved[name] : `${name}@${previousRecord.version}`
+          await changeDesktopBundle(options.desktopManager, 'add', name, specifier, profileDir)
+        }
+      }
+      restoreProfileFiles(profileDir, journal.previous)
+      writeJsonAtomically(journalPath, { ...journal, state: 'restored' })
+      return
     }
     restoreProfileFiles(profileDir, journal.previous)
     // A completed no-op changed only sync metadata; node_modules needs no installer.
@@ -502,7 +582,12 @@ export async function syncThirdPartyPlugins(options) {
     assertNoPendingTakeover(profileDir)
     const pending = existsSync(journalPath) ? readJson(journalPath, 'Plugin operation') : null
     if (options.restoreOnly) {
-      if (pending !== null && (options.operationId === undefined || pending.operationId === options.operationId)) await restore(pending)
+      if (pending !== null && (options.operationId === undefined || pending.operationId === options.operationId)) {
+        try { await restore(pending) } catch (error) {
+          writeJsonAtomically(journalPath, { ...pending, state: 'restore-failed' })
+          throw error
+        }
+      }
       return { restored: pending !== null }
     }
     if (pending?.state === 'applying' || pending?.state === 'restore-failed') await restore(pending)
@@ -512,7 +597,17 @@ export async function syncThirdPartyPlugins(options) {
     staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), options.profile ?? 'web')
     const packageManifests = await preflightGitPlugins(profileDir, manifest.plugins, readInstalledThirdPartyPlugins(profileDir, { includeManager: true }), options.spawnCommand ?? spawn)
     const previous = Object.fromEntries(RESTORE_FILES.map(name => [name, existsSync(join(profileDir, name)) ? readFileSync(join(profileDir, name), 'utf8') : null]))
-    const journal = { schemaVersion: 1, state: 'applying', operationId: options.operationId ?? null, startedAt: new Date().toISOString(), previous }
+    const desktopInstalled = desktop ? readInstalledThirdPartyPlugins(profileDir, { includeManager: true }) : []
+    const desktopTargets = desktop ? [...new Set([
+      ...manifest.plugins.filter(plugin => {
+        const current = desktopInstalled.find(item => item.name === plugin.name)
+        return current === undefined || current.version !== plugin.version || current.requested !== (sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version)
+      }).map(plugin => plugin.name),
+      ...staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), 'desktop'),
+    ])] : undefined
+    const journal = { schemaVersion: 1, state: 'applying', operationId: options.operationId ?? null, startedAt: new Date().toISOString(), previous,
+      ...(desktop ? { desktopTargets, desktopPrevious: desktopInstalled.map(({ name, version }) => ({ name, version })) } : {}),
+    }
     writeJsonAtomically(journalPath, journal)
     try {
       const result = await applyThirdPartyPlugins({ ...options, packageManifests })

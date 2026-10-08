@@ -1,5 +1,13 @@
 # dsh-environment-sync
 
+## 0.7.9：Desktop profile
+
+插件默认使用应用启动器提供的 profile 和 Home。Desktop 安装及恢复通过本应用的官方 `pluginManager`，保留随应用提供的依赖，不写入源码 `link:` 覆盖，也不启动 Web Host。Web 的源码安装与重启流程保持不变。
+
+Desktop 安装期间临时设置 `saveExact`，结束后恢复该设置并保留安装器产生的其他工作区设置；安装后回读版本与固定来源，不匹配即恢复旧包。恢复记录仅包含本次变更的第三方包，不重装无关包或随应用提供的包。
+
+Desktop 与 Web 使用各自的插件清单和 profile patch；清单的 `profile` 必须与目标一致，不直接导入 Web 的整套环境快照。Desktop 安装不提前启用新包，环境应用后需完全退出应用再打开，关闭窗口仅隐藏应用。正在使用的包无法移除时保留官方安装器的拒绝结果与恢复记录。外部脚本不能用源码 CLI 修改 Desktop profile。
+
 This release requires DSH 0.2.1-alpha.1 or a compatible 0.2 release. See [compatibility details](docs/dsh-0.2-compatibility.md).
 
 通过 Git 同步整套 DSH 插件与共享配置。公开和私有插件均使用固定提交，私有环境仓库保存清单、配置和加密凭据；聊天、附件、运行日志和本机资料库不上传。
