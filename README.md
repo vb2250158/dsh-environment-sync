@@ -1,6 +1,8 @@
 # dsh-environment-sync
 
-## 0.7.9：Desktop profile
+## Desktop profile
+
+接口描述读取插件自身的 Zod 依赖，独立 Desktop Home 不要求初始化 Web profile。
 
 插件默认使用应用启动器提供的 profile 和 Home。Desktop 安装及恢复通过本应用的官方 `pluginManager`，保留随应用提供的依赖，不写入源码 `link:` 覆盖，也不启动 Web Host。Web 的源码安装与重启流程保持不变。
 
