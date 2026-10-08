@@ -75,7 +75,7 @@ function desktopManager(profileDir, calls, fail = () => false) {
   }
 }
 
-test('Desktop 同步使用宿主安装器，保留官方依赖和 Web profile，不使用源码 CLI', async () => {
+test('Desktop 复用 Web 清单并使用宿主安装器，保留官方依赖和 Web profile，不使用源码 CLI', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-sync-'))
   const profileDir = join(root, 'profiles', 'desktop'), repositoryPath = join(root, 'private')
   const calls = []
@@ -83,7 +83,7 @@ test('Desktop 同步使用宿主安装器，保留官方依赖和 Web profile，
     await writeProfile(profileDir, { '@deepseek-ai/dsh-bundle-web': '0.2.1-alpha.1', 'desktop-plugin': '1.0.0' })
     await writePlugin(profileDir, 'desktop-plugin', '1.0.0')
     await writeProfile(join(root, 'profiles', 'web'), { 'web-plugin': '9.0.0' })
-    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 2, profile: 'desktop', plugins: [{ name: 'desktop-plugin', version: '2.0.0', specifier: 'desktop-plugin@2.0.0' }] })
+    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 2, profile: 'web', plugins: [{ name: 'desktop-plugin', version: '2.0.0', specifier: 'desktop-plugin@2.0.0' }] })
     const options = { profileDir, repositoryPath, profile: 'desktop', desktopManager: desktopManager(profileDir, calls), spawnCommand() { throw new Error('Desktop must not launch source CLI') } }
     const result = await syncThirdPartyPlugins(options)
     assert.equal(result.restartRequired, true)

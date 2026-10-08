@@ -18,6 +18,30 @@ async function write(path, contents) {
   await writeFile(path, contents)
 }
 
+for (const [from, to] of [['web', 'desktop'], ['desktop', 'web']]) {
+  test(`${from} 设置可导入 ${to}：主题和模型共用，目标端口、会话及来源文件保持不变`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-cross-profile-'))
+    const source = join(root, 'source'), target = join(root, 'target'), data = join(root, 'data')
+    try {
+      await write(join(source, `profiles/${from}/package.json`), JSON.stringify({ dependencies: {}, dsh: { profile: { bundles: [] } } }))
+      await write(join(source, `profiles/${from}/cordis.patch.yml`), '- id: ui-theme\n  config:\n    preference: dark\n- id: agent-default-model\n  config:\n    model: fixture-model\n- id: webserver\n  config:\n    port: 3180\n')
+      await exportPrivateEnvironment({ dshHomePath: source, dataRootPath: data, profile: from, encryptionSecret: 'fixture-key' })
+      const original = await readFile(join(data, `profiles/${from}/cordis.patch.yml`), 'utf8')
+      await write(join(target, `profiles/${to}/cordis.patch.yml`), '- id: webserver\n  config:\n    port: 0\n')
+      await write(join(target, 'sessions/fixture.json'), '{"id":"original-session"}\n')
+      await importPrivateEnvironment({ dshHomePath: target, dataRootPath: data, profile: to, encryptionSecret: 'fixture-key' })
+      const patch = parse(await readFile(join(target, `profiles/${to}/cordis.patch.yml`), 'utf8'))
+      assert.equal(patch.find(row => row.id === 'ui-theme').config.preference, 'dark')
+      assert.equal(patch.find(row => row.id === 'agent-default-model').config.model, 'fixture-model')
+      assert.equal(patch.find(row => row.id === 'webserver').config.port, 0)
+      assert.equal(await readFile(join(data, `profiles/${from}/cordis.patch.yml`), 'utf8'), original)
+      assert.equal(await readFile(join(target, 'sessions/fixture.json'), 'utf8'), '{"id":"original-session"}\n')
+      await assert.rejects(readFile(join(target, 'settings.yaml')), { code: 'ENOENT' })
+      await assert.rejects(importPrivateEnvironment({ dshHomePath: target, dataRootPath: data, profile: 'headless', encryptionSecret: 'fixture-key' }), /does not match/)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+}
+
 test('新版配置从 profile 导出并保留本机路径，不重新创建 settings.yaml', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-profile-config-'))
   const home = join(root, 'home'), target = join(root, 'target'), data = join(root, 'data')

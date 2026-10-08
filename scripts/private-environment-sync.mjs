@@ -8,6 +8,7 @@ import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseDocument, stringify } from 'yaml'
 import { exportAgentPresets, prepareAgentPresets } from '../lib/agent-preset-sync.js'
+import { profilesShareEnvironment } from './sync-third-party-plugins.mjs'
 
 export const PRIVATE_ENVIRONMENT_SCHEMA_VERSION = 2
 export const PRIVATE_SYNC_KEY_FILENAME = 'private-sync.key'
@@ -275,12 +276,13 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
 export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret } = {}) {
   const dshHome = resolve(dshHomePath || join(homedir(), '.dsh'))
   const safeProfile = requireProfile(profile)
-  const paths = privateEnvironmentPaths(dataRootPath, safeProfile)
+  let paths = privateEnvironmentPaths(dataRootPath, safeProfile)
   const profileDir = join(dshHome, 'profiles', safeProfile)
   const manifest = JSON.parse(await readText(paths.manifest, true))
-  if (![1, PRIVATE_ENVIRONMENT_SCHEMA_VERSION].includes(manifest.schemaVersion) || manifest.profile !== safeProfile) {
+  if (![1, PRIVATE_ENVIRONMENT_SCHEMA_VERSION].includes(manifest.schemaVersion) || !profilesShareEnvironment(manifest.profile, safeProfile)) {
     throw new TypeError('Private environment manifest does not match the requested profile')
   }
+  paths = privateEnvironmentPaths(dataRootPath, manifest.profile)
 
   const snapshotSettings = normalizeSettings(parseMapping(await readText(paths.settings, true), 'Private DSH settings'))
   const currentSource = await readText(join(dshHome, 'settings.yaml'))

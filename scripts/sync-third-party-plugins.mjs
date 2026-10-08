@@ -25,6 +25,12 @@ function profileName(value) {
   return value
 }
 
+/** Web and Desktop share portable settings and third-party package records. */
+export function profilesShareEnvironment(source, target) {
+  const from = profileName(source), to = profileName(target)
+  return from === to || (['web', 'desktop'].includes(from) && ['web', 'desktop'].includes(to))
+}
+
 function readJson(path, description) {
   if (!existsSync(path)) throw new Error(`${description} does not exist: ${path}`)
   try {
@@ -199,7 +205,7 @@ export function readThirdPartyManifest(path, profile = 'web') {
   if (!existsSync(path)) return emptyThirdPartyManifest(profile)
   const value = readJson(path, 'Plugin manifest')
   if (value.schemaVersion !== THIRD_PARTY_MANIFEST_SCHEMA_VERSION) throw new Error(`Unsupported plugin manifest schema: ${String(value.schemaVersion)}`)
-  if (value.profile !== undefined && value.profile !== profileName(profile)) throw new Error(`Plugin manifest profile does not match ${profile}`)
+  if (value.profile !== undefined && !profilesShareEnvironment(value.profile, profile)) throw new Error(`Plugin manifest profile does not match ${profile}`)
   if (!Array.isArray(value.plugins)) throw new Error('Plugin manifest plugins must be an array')
   const plugins = value.plugins.map(normalizeRecord)
   const names = new Set()

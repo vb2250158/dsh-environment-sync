@@ -6,7 +6,7 @@
 
 Desktop 安装期间临时设置 `saveExact`，结束后恢复该设置并保留安装器产生的其他工作区设置；安装后回读版本与固定来源，不匹配即恢复旧包。恢复记录仅包含本次变更的第三方包，不重装无关包或随应用提供的包。
 
-Desktop 与 Web 使用各自的插件清单和 profile patch；清单的 `profile` 必须与目标一致，不直接导入 Web 的整套环境快照。Desktop 安装不提前启用新包，环境应用后需完全退出应用再打开，关闭窗口仅隐藏应用。正在使用的包无法移除时保留官方安装器的拒绝结果与恢复记录。外部脚本不能用源码 CLI 修改 Desktop profile。
+Web 与 Desktop 共用插件版本清单、主题、模型和其他可移植设置；清单中的 `profile` 标记导出来源，不阻止这两种宿主相互导入。实际安装写入明确指定的目标 profile，不复制 `node_modules`。源 profile patch 的可移植设置与启停配置应用到目标，目标自身的 Web Server 配置保留；随应用提供的必需 bundle 不被替换。Desktop 安装不提前启用新包，环境应用后再同步 bundle 选择，完全退出并重新打开后生效，关闭窗口仅隐藏应用。外部脚本不能用源码 CLI 修改 Desktop profile。
 
 This release requires DSH 0.2.1-alpha.1 or a compatible 0.2 release. See [compatibility details](docs/dsh-0.2-compatibility.md).
 

@@ -179,6 +179,22 @@ test('取消重启会保留可读的待生效标记', async () => {
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
+test('Desktop 复用 Web 仓库配置，自己的显式配置优先', () => {
+  const home = temporaryHome()
+  try {
+    profile(home)
+    profile(home, 'desktop')
+    const shared = writeRepositoryConfig(home, 'web', { dataRemoteUrl: 'https://github.com/example/shared-data', dataLocalPath: join(home, 'shared') })
+    const ctx = new Context()
+    ctx.provide('profileContext', { name: 'desktop', home })
+    const manager = new PrivatePluginManager(ctx)
+    assert.deepEqual(manager.repositoryConfig(), shared)
+    const own = writeRepositoryConfig(home, 'desktop', { dataRemoteUrl: 'https://github.com/example/desktop-data', dataLocalPath: join(home, 'own') })
+    assert.deepEqual(manager.repositoryConfig(), own)
+    assert.deepEqual(readRepositoryConfig(home, 'web'), shared)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
 test('管理器使用启动器提供的 profile 和 Home，保留显式 Web 自定义 profile', () => {
   const ctx = new Context()
   ctx.provide('profileContext', { name: 'desktop', home: 'C:/owned-home' })
