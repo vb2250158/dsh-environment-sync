@@ -5,7 +5,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import lockfile from 'proper-lockfile'
 import { assertNoPendingTakeover } from '../lib/stale-takeover.js'
-import { parse, stringify } from 'yaml'
+import { parse, parseDocument, stringify } from 'yaml'
+import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -412,7 +413,38 @@ async function changeDesktopBundle(manager, action, name, specifier, profileDir)
     throw new Error(`Desktop plugin ${action} ${name} failed: ${result.error?.diagnostic ?? result.error?.code ?? result.packageResult?.output ?? result.application}`)
   }
   if (action === 'add' && result.bundle !== name) throw new Error(`Desktop installer returned an unexpected bundle for ${name}`)
+  if (action === 'add') await retainDesktopGitSource(profileDir, name, specifier)
   return { name, action, ok: true, application: result.application }
+}
+
+/** Restore a fixed GitHub spec only when pnpm's direct lock record proves that exact repository and commit. */
+export async function retainDesktopGitSource(profileDir, name, specifier) {
+  const expected = /^github:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([0-9a-f]{40})$/i.exec(specifier)
+  if (expected === null) return
+  const manifestPath = join(profileDir, 'package.json')
+  await withFileLock(manifestPath, async () => {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    const recorded = manifest.dependencies?.[name]
+    if (recorded === specifier) return
+    const repository = `https://github.com/${expected[1]}.git`
+    if (recorded !== `git+${repository}`) throw new Error(`Desktop installer changed the Git source for ${name}`)
+    const lockPath = join(profileDir, 'pnpm-lock.yaml')
+    const document = parseDocument(readFileSync(lockPath, 'utf8'))
+    if (document.errors.length) throw new Error('Desktop installer left an invalid lockfile')
+    const lock = document.toJS()
+    const direct = lock.importers?.['.']?.dependencies?.[name]
+    const pinned = `git+${repository}#${expected[2]}`
+    const resolution = lock.packages?.[`${name}@${pinned}`]?.resolution
+    if (direct?.specifier !== recorded || typeof direct.version !== 'string' ||
+      !(direct.version === pinned || direct.version.startsWith(pinned + '(')) ||
+      resolution?.type !== 'git' || resolution.repo !== repository || resolution.commit !== expected[2]) {
+      throw new Error(`Desktop lockfile does not prove the fixed Git commit for ${name}`)
+    }
+    manifest.dependencies[name] = specifier
+    document.setIn(['importers', '.', 'dependencies', name, 'specifier'], specifier)
+    await writeFileAtomic(lockPath, document.toString(), { mode: 0o600 })
+    await writeFileAtomic(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 })
+  })
 }
 
 /** Install the manifest's plugins and remove stale profile plugins. */
