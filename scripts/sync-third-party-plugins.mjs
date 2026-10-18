@@ -61,8 +61,17 @@ function isOfficialPackage(name) {
   return name.startsWith(OFFICIAL_PACKAGE_PREFIX)
 }
 
+function parseGitSpecifier(specifier) {
+  const match = /^(github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+|git\+https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_./-]+)#([0-9a-f]{40})(?:&path:([A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*))?$/i.exec(specifier)
+  if (match === null) return null
+  const [, source, commit, subdirectory] = match
+  const url = source.startsWith('github:') ? `https://github.com/${source.slice(7)}.git` : source.slice(4)
+  const owner = /^https:\/\/github\.com\/([^/]+)\//i.exec(url)?.[1] ?? null
+  return { url, commit, subdirectory, owner }
+}
+
 function isSupportedGitSpecifier(specifier) {
-  return /^(?:github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+|git\+https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_./-]+)#[0-9a-f]{40}$/i.test(specifier)
+  return parseGitSpecifier(specifier) !== null
 }
 
 function sourceKind(specifier) {
@@ -72,10 +81,7 @@ function sourceKind(specifier) {
 }
 
 function githubRepositoryOwner(specifier) {
-  const githubMatch = /^github:([^/]+)\/[^#]+#[0-9a-f]{40}$/i.exec(specifier)
-  if (githubMatch !== null) return githubMatch[1]
-  const httpsMatch = /^git\+https:\/\/github\.com\/([^/]+)\/[^#]+(?:\.git)?#[0-9a-f]{40}$/i.exec(specifier)
-  return httpsMatch?.[1] ?? null
+  return parseGitSpecifier(specifier)?.owner ?? null
 }
 
 function packageAuthor(manifest) {
@@ -417,27 +423,28 @@ async function changeDesktopBundle(manager, action, name, specifier, profileDir)
   return { name, action, ok: true, application: result.application }
 }
 
-/** Restore a fixed GitHub spec only when pnpm's direct lock record proves that exact repository and commit. */
+/** Restore a fixed GitHub spec only when pnpm's direct lock record confirms its repository, commit, and package directory. */
 export async function retainDesktopGitSource(profileDir, name, specifier) {
-  const expected = /^github:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([0-9a-f]{40})$/i.exec(specifier)
-  if (expected === null) return
+  const expected = parseGitSpecifier(specifier)
+  if (expected === null || expected.owner === null) return
   const manifestPath = join(profileDir, 'package.json')
   await withFileLock(manifestPath, async () => {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
     const recorded = manifest.dependencies?.[name]
     if (recorded === specifier) return
-    const repository = `https://github.com/${expected[1]}.git`
+    const repository = expected.url
     if (recorded !== `git+${repository}`) throw new Error(`Desktop installer changed the Git source for ${name}`)
     const lockPath = join(profileDir, 'pnpm-lock.yaml')
     const document = parseDocument(readFileSync(lockPath, 'utf8'))
     if (document.errors.length) throw new Error('Desktop installer left an invalid lockfile')
     const lock = document.toJS()
     const direct = lock.importers?.['.']?.dependencies?.[name]
-    const pinned = `git+${repository}#${expected[2]}`
+    const pinned = `git+${repository}#${expected.commit}${expected.subdirectory === undefined ? '' : `&path:${expected.subdirectory}`}`
     const resolution = lock.packages?.[`${name}@${pinned}`]?.resolution
     if (direct?.specifier !== recorded || typeof direct.version !== 'string' ||
       !(direct.version === pinned || direct.version.startsWith(pinned + '(')) ||
-      resolution?.type !== 'git' || resolution.repo !== repository || resolution.commit !== expected[2]) {
+      resolution?.type !== 'git' || resolution.repo !== repository || resolution.commit !== expected.commit ||
+      resolution.path !== expected.subdirectory) {
       throw new Error(`Desktop lockfile does not prove the fixed Git commit for ${name}`)
     }
     manifest.dependencies[name] = specifier
@@ -526,13 +533,13 @@ async function preflightGitPlugins(profileDir, plugins, installed, spawnCommand)
     const hash = createHash('sha256').update(plugin.specifier).digest('hex')
     const cache = join(profileDir, '.dsh-plugin-cache', hash)
     mkdirSync(cache, { recursive: true })
-    const [source, commit] = plugin.specifier.split('#')
-    const url = source.startsWith('github:') ? `https://github.com/${source.slice(7)}.git` : source.slice(4)
+    const { url, commit, subdirectory } = parseGitSpecifier(plugin.specifier)
     for (const args of [['init', '--quiet', cache], ['-C', cache, 'fetch', '--quiet', '--depth=1', url, commit]]) {
       const result = await run('git', args, { spawnCommand })
       if (!result.ok) throw new Error(`插件 ${plugin.name} 来源不可读取；尚未修改安装：${result.output}`)
     }
-    const result = await run('git', ['-C', cache, 'show', `${commit}:package.json`], { spawnCommand })
+    const packagePath = subdirectory === undefined ? 'package.json' : `${subdirectory}/package.json`
+    const result = await run('git', ['-C', cache, 'show', `${commit}:${packagePath}`], { spawnCommand })
     if (!result.ok) throw new Error(`插件 ${plugin.name} 提交缺少 package.json`)
     const manifest = JSON.parse(result.output)
     if (manifest.name !== plugin.name || manifest.version !== plugin.version) throw new Error(`插件 ${plugin.name} 的名称或版本与 Git 提交不符`)

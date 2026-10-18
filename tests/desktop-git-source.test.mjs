@@ -6,18 +6,22 @@ import test from 'node:test'
 import { parse, stringify } from 'yaml'
 import { retainDesktopGitSource } from '../scripts/sync-third-party-plugins.mjs'
 
-for (const invalid of [null, 'commit', 'repo', 'direct']) {
-  test(`Desktop retains fixed private Git source: ${invalid ?? 'verified lock'}`, async () => {
+for (const subdirectory of [undefined, 'packages/plugin']) {
+for (const invalid of [null, 'commit', 'repo', 'direct', 'path']) {
+  test(`Desktop retains fixed private Git source: ${invalid ?? 'verified lock'}, directory=${subdirectory ?? 'root'}`, async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-git-'))
     const name = 'fixture-plugin', commit = '1'.repeat(40)
     const repository = 'https://github.com/example/plugin.git'
-    const recorded = `git+${repository}`, pinned = recorded + '#' + commit
-    const specifier = `github:example/plugin#${commit}`
+    const suffix = subdirectory === undefined ? '' : `&path:${subdirectory}`
+    const recorded = `git+${repository}`, pinned = recorded + '#' + commit + suffix
+    const specifier = `github:example/plugin#${commit}${suffix}`
     const manifest = { dependencies: { [name]: recorded, unrelated: '2.0.0' }, dsh: { profile: { bundles: [] } } }
     const lock = { lockfileVersion: '9.0', importers: { '.': { dependencies: { [name]: { specifier: recorded, version: pinned + '(peer@1.0.0)' } } } }, packages: { [name + '@' + pinned]: { resolution: { type: 'git', repo: repository, commit } } } }
+    if (subdirectory !== undefined) lock.packages[name + '@' + pinned].resolution.path = subdirectory
     if (invalid === 'commit') lock.packages[name + '@' + pinned].resolution.commit = '2'.repeat(40)
     if (invalid === 'repo') lock.packages[name + '@' + pinned].resolution.repo = 'https://github.com/other/plugin.git'
     if (invalid === 'direct') lock.importers['.'].dependencies[name].version = recorded + '#' + '2'.repeat(40)
+    if (invalid === 'path') lock.packages[name + '@' + pinned].resolution.path = 'other-package'
     const before = JSON.stringify(manifest, null, 2) + '\n', lockBefore = stringify(lock)
     try {
       await writeFile(join(root, 'package.json'), before)
@@ -37,4 +41,5 @@ for (const invalid of [null, 'commit', 'repo', 'direct']) {
       }
     } finally { await rm(root, { recursive: true, force: true }) }
   })
+}
 }

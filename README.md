@@ -26,6 +26,8 @@ This release requires DSH 0.2.1-alpha.1 or a compatible 0.2 release. See [compat
 
 ### 固定提交必须已推送到远端，且稳定可取
 
+仓库子目录中的插件使用 `github:owner/repository#<40位提交>&path:packages/plugin`，也支持 `git+https://github.com/owner/repository.git#<40位提交>&path:packages/plugin`。子目录仅接受由字母、数字、下划线和连字符组成的相对路径段，不接受绝对路径、点路径段、反斜杠、编码路径或其他参数。安装前读取该提交中子目录的 `package.json`，核对包名和版本；Desktop 恢复被安装器规范化的来源时，锁文件也必须确认同一子目录。
+
 清单中的 `specifier` 钉的是完整提交，安装时会到远端**按该提交取包**。三条相关约束：
 
 - **钉一个只在本地存在的提交，会在取包阶段失败，并把本机仓库弄脏——脏仓库会阻塞下一次同步。**「本地能拉到」不代表远端有，以远端能列出该提交为准。
