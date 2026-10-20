@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.15 (2026-10-20)
+
+- 包信息仅解析 Git 标准输出；诊断日志继续保留在失败信息中，不再混入 JSON。增加带传输诊断的名称与版本核验回归。
+- Parse Git package metadata from stdout while retaining diagnostics for failed reads. Transport warnings no longer corrupt a successful manifest response.
+
 ## 0.7.14 (2026-10-20)
 
 - 来源预检使用具名的 Git 按需取文件缓存，读取固定提交中的包信息时不预下载无关素材。保留子目录、包名、版本和写前拒绝检查；服务端不支持过滤时仍兼容普通 Git 传输。

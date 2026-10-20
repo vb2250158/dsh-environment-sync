@@ -300,14 +300,14 @@ function staleManagedPlugins(profileDir, installed, desiredNames, profile) {
   }).map(plugin => plugin.name)
 }
 
-function run(command, args, { cwd, env = process.env, spawnCommand = spawn } = {}) {
+function run(command, args, { cwd, env = process.env, spawnCommand = spawn, captureStdout = false } = {}) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawnCommand(command, args, { cwd, env, shell: false, windowsHide: true })
-    let output = ''
-    child.stdout?.on('data', chunk => { output += chunk.toString() })
+    let output = '', stdout = ''
+    child.stdout?.on('data', chunk => { const text = chunk.toString(); output += text; if (captureStdout) stdout += text })
     child.stderr?.on('data', chunk => { output += chunk.toString() })
     child.once('error', rejectRun)
-    child.once('close', (exitCode, signal) => resolveRun({ ok: exitCode === 0, exitCode, signal, output: output.trim() }))
+    child.once('close', (exitCode, signal) => resolveRun({ ok: exitCode === 0, exitCode, signal, output: output.trim(), ...(captureStdout ? { stdout } : {}) }))
   })
 }
 
@@ -546,9 +546,9 @@ async function preflightGitPlugins(profileDir, plugins, installed, spawnCommand)
       if (!result.ok) throw new Error(`插件 ${plugin.name} 来源不可读取；尚未修改安装：${result.output}`)
     }
     const packagePath = subdirectory === undefined ? 'package.json' : `${subdirectory}/package.json`
-    const result = await run('git', ['-C', cache, 'show', `${commit}:${packagePath}`], { spawnCommand })
-    if (!result.ok) throw new Error(`插件 ${plugin.name} 提交缺少 package.json`)
-    const manifest = JSON.parse(result.output)
+    const result = await run('git', ['-C', cache, 'show', `${commit}:${packagePath}`], { spawnCommand, captureStdout: true })
+    if (!result.ok) throw new Error(`读取插件 ${plugin.name} 提交中的 package.json 失败：${result.output}`)
+    const manifest = JSON.parse(result.stdout)
     if (manifest.name !== plugin.name || manifest.version !== plugin.version) throw new Error(`插件 ${plugin.name} 的名称或版本与 Git 提交不符`)
     manifests.push(manifest)
   }

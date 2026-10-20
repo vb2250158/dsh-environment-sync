@@ -35,7 +35,7 @@ for (const source of ['github:owner/bot', 'git+https://github.com/owner/bot.git'
   }))
 }
 
-for (const packageName of ['wrong-package', 'ds-bot']) {
+for (const packageName of ['wrong-package', 'ds-bot', 'read-failed']) {
 test(`preflight reads the selected package at the pinned commit: ${packageName}`, () => fixture(async ({ profileDir, repositoryPath, writeManifest }) => {
   await writeFile(join(profileDir, 'package.json'), '{"dependencies":{}}\n')
   await writeManifest(`github:owner/bot#${commit}&path:packages/ds-bot`)
@@ -61,12 +61,16 @@ test(`preflight reads the selected package at the pinned commit: ${packageName}`
     child.stdout = new EventEmitter()
     child.stderr = new EventEmitter()
     queueMicrotask(() => {
-      if (args.includes('show')) child.stdout.emit('data', JSON.stringify({ name: packageName, version: '1.0.0' }))
-      child.emit('close', 0, null)
+      if (args.includes('show')) {
+        child.stderr.emit('data', packageName === 'read-failed' ? 'fatal: source transport unavailable\n' : 'warning: source transport diagnostic\n')
+        if (packageName !== 'read-failed') child.stdout.emit('data', JSON.stringify({ name: packageName, version: '1.0.0' }))
+      }
+      child.emit('close', packageName === 'read-failed' && args.includes('show') ? 128 : 0, null)
     })
     return child
   } })
   if (packageName === 'wrong-package') await assert.rejects(operation, /名称或版本与 Git 提交不符/)
+  else if (packageName === 'read-failed') await assert.rejects(operation, /读取插件 ds-bot 提交中的 package.json 失败：fatal: source transport unavailable/)
   else assert.equal((await operation).restartRequired, true)
   assert.equal(commands.find(item => item.args.includes('remote.origin.url')).args.at(-1), 'https://github.com/owner/bot.git')
   const fetch = commands.find(item => item.args.includes('fetch'))
