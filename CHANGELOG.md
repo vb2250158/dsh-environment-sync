@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.16 (2026-10-20)
+
+- Initialize the dependency map when a fresh profile has no dependencies field. Keep bundles and unrelated manifest fields and make repeated source alignment idempotent.
+- 首次同步支持尚无 dependencies 的空 profile；保留 bundle 与其他字段，重复对齐不产生漂移。
+
+
 ## 0.7.15 (2026-10-20)
 
 - 包信息仅解析 Git 标准输出；诊断日志继续保留在失败信息中，不再混入 JSON。增加带传输诊断的名称与版本核验回归。

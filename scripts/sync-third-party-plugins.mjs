@@ -347,6 +347,7 @@ export function alignOfficialRuntime(profileDir, sourceRoot, packageManifests = 
   }
   const path = join(profileDir, 'pnpm-workspace.yaml')
   const profile = profileManifest(profileDir)
+  profile.dependencies ??= {}
   const required = new Set()
   const visit = manifest => {
     for (const name of Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })) {

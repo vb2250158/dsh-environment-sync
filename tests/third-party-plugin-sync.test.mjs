@@ -171,6 +171,21 @@ test('升级源码运行时移除已删除官方包，保留第三方覆盖并�
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('首次对齐没有 dependencies 的 profile 时补齐插件需要的官方接口', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-empty-runtime-align-'))
+  const profileDir = join(root, 'profile'), source = join(root, 'source')
+  try {
+    await writeJson(join(profileDir, 'package.json'), { private: true, dsh: { profile: { bundles: ['base'] } } })
+    await writeJson(join(source, 'packages/client/ui-slots/package.json'), { name: '@deepseek-ai/dsh-client-ui-slots', version: '0.2.1-rc.2' })
+    const manifests = [{ peerDependencies: { '@deepseek-ai/dsh-client-ui-slots': '*' } }]
+    alignOfficialRuntime(profileDir, source, manifests)
+    const profile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+    assert.equal(profile.dependencies['@deepseek-ai/dsh-client-ui-slots'], `link:${join(source, 'packages/client/ui-slots').replaceAll('\\', '/')}`)
+    assert.deepEqual(profile.dsh.profile.bundles, ['base'])
+    assert.equal(alignOfficialRuntime(profileDir, source, manifests), false)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('首次拉取空清单保留未接管插件，已接管插件的本机修改阻止远端删除', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-ownership-'))
   const profileDir = join(root, 'profiles', 'web')
