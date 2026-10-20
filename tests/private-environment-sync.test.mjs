@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { parse } from 'yaml'
 import {
@@ -204,7 +205,7 @@ test('订阅凭据加密恢复，删除后同步不会复活，机器资料配�
 })
 
 test('私有数据目录不能位于公开插件仓库内', () => {
-  assert.throws(() => resolvePrivateDataRoot(join(process.cwd(), 'config', 'private-data')), /outside the public plugin repository/)
+  assert.throws(() => resolvePrivateDataRoot(fileURLToPath(new URL('../config/private-data', import.meta.url))), /outside the public plugin repository/)
   const external = join(tmpdir(), 'dsh-private-data')
   assert.equal(resolvePrivateDataRoot(external), external)
   assert.equal(privateEnvironmentPaths(external, 'web').thirdParty, join(external, 'config', 'plugins.json'))

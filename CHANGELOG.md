@@ -1,4 +1,11 @@
-# 0.7.1
+# Changelog
+
+## 0.7.14 (2026-10-20)
+
+- 来源预检使用具名的 Git 按需取文件缓存，读取固定提交中的包信息时不预下载无关素材。保留子目录、包名、版本和写前拒绝检查；服务端不支持过滤时仍兼容普通 Git 传输。
+- Fetch source metadata through a named Git promisor remote. Preflight reads the selected fixed-commit package manifest without fetching unrelated asset blobs on servers that support filtering; subdirectory and name/version checks remain in place before installation.
+- 私有目录拒绝用例按自身文件定位仓库，不依赖运行目录；测试文档明确独立插件的测试归属。
+- Make the private-directory rejection fixture independent of the caller's working directory and document standalone test ownership.
 
 ## Unreleased — 0.7.13
 

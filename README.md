@@ -1,5 +1,9 @@
 # dsh-environment-sync
 
+本仓库的 `npm test` 覆盖环境、安装与恢复流程。独立插件维护各自的测试，不以拆仓前的 `plugins/` 目录或整体仓库的 loader ID 作为依赖。
+
+`npm test` covers environment synchronization, installation and recovery. Independent plugins own their tests without depending on the former monorepo's `plugins/` directory or combined loader IDs.
+
 ## Desktop profile
 
 接口描述读取插件自身的 Zod 依赖，独立 Desktop Home 不要求初始化 Web profile。
@@ -25,6 +29,10 @@ This release requires DSH 0.2.1-alpha.1 or a compatible 0.2 release. See [compat
 不同 Windows 用户、不同 DSH Home 的安装互不代表对方。**不要从另一台电脑的盘符或目录推断本机路径**，每次先确认当前 DSH Home、profile、实际进程与授权再动手。网络地址、NAS 路径、资料库位置等设备相关设置不进入共享配置；机器专用的额外字段登记在本机 `private-sync.local.yaml`。资料库与会话数据不随本仓库复制。
 
 ### 固定提交必须已推送到远端，且稳定可取
+
+Git 服务端支持过滤时，来源预检只取提交、目录和选定的包信息，其他素材留到正式安装阶段；不支持过滤时保留 Git 的普通传输。预检仍按完整提交核对包名和版本。
+
+On Git servers that support filtering, source preflight fetches commit/tree objects and the selected package manifest. Unrelated assets remain for the official installer. Servers without filtering retain ordinary Git transfer; fixed-commit package name/version checks still run before profile changes.
 
 仓库子目录中的插件使用 `github:owner/repository#<40位提交>&path:packages/plugin`，也支持 `git+https://github.com/owner/repository.git#<40位提交>&path:packages/plugin`。子目录仅接受由字母、数字、下划线和连字符组成的相对路径段，不接受绝对路径、点路径段、反斜杠、编码路径或其他参数。安装前读取该提交中子目录的 `package.json`，核对包名和版本；Desktop 恢复被安装器规范化的来源时，锁文件也必须确认同一子目录。
 

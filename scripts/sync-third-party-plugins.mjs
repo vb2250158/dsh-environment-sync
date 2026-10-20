@@ -524,6 +524,7 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
 
 const RESTORE_FILES = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'cordis.patch.yml', PLUGIN_BASELINE_FILENAME, RESTART_MARKER_FILENAME]
 
+/** Read fixed-commit package metadata without downloading unrelated asset blobs. */
 async function preflightGitPlugins(profileDir, plugins, installed, spawnCommand) {
   const manifests = []
   for (const plugin of plugins) {
@@ -534,7 +535,13 @@ async function preflightGitPlugins(profileDir, plugins, installed, spawnCommand)
     const cache = join(profileDir, '.dsh-plugin-cache', hash)
     mkdirSync(cache, { recursive: true })
     const { url, commit, subdirectory } = parseGitSpecifier(plugin.specifier)
-    for (const args of [['init', '--quiet', cache], ['-C', cache, 'fetch', '--quiet', '--depth=1', url, commit]]) {
+    for (const args of [
+      ['init', '--quiet', cache],
+      ['-C', cache, 'config', 'remote.origin.url', url],
+      ['-C', cache, 'config', 'remote.origin.promisor', 'true'],
+      ['-C', cache, 'config', 'remote.origin.partialclonefilter', 'blob:none'],
+      ['-C', cache, 'fetch', '--quiet', '--filter=blob:none', '--depth=1', 'origin', commit],
+    ]) {
       const result = await run('git', args, { spawnCommand })
       if (!result.ok) throw new Error(`插件 ${plugin.name} 来源不可读取；尚未修改安装：${result.output}`)
     }
