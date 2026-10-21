@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.17 (2026-10-21)
+
+- 两阶段 Web 安装完成后补启用本次新增的 bundle，修复依赖版本正确但插件未加载的问题；保留原有启停选择，启用失败按原事务恢复。
+- Activate newly added Web bundles after the frozen install. Preserve existing bundle choices and restore the previous profile if activation fails.
+
 ## 0.7.16 (2026-10-20)
 
 - Initialize the dependency map when a fresh profile has no dependencies field. Keep bundles and unrelated manifest fields and make repeated source alignment idempotent.

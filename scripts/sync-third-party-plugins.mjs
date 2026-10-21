@@ -461,6 +461,8 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   if (!existsSync(manifestPath(repositoryPath))) throw new Error('Plugin manifest is missing; no plugins were changed')
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
   const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true })
+  const initialManifest = profileManifest(profileDir)
+  const initialDependencies = new Set(Object.keys({ ...initialManifest.dependencies, ...initialManifest.devDependencies }))
   const desiredNames = new Set(manifest.plugins.map(plugin => plugin.name))
   const changed = manifest.plugins.filter(plugin => {
     const current = installed.find(item => item.name === plugin.name)
@@ -517,10 +519,30 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   const installation = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'install', '--frozen-lockfile'], { spawnCommand, env })
   commands.push({ name: 'profile', action: 'install', ...installation })
   if (!installation.ok) throw new Error(`应用插件锁文件失败：${installation.output || `exit ${String(installation.exitCode)}`}`)
+  // Lockfile-only adds precede package materialization, so the installer may miss new bundles.
+  await activateNewBundles(profileDir, changed.filter(plugin => !initialDependencies.has(plugin.name)))
   const restartMarker = restartMarkerPath(profileDir)
   writeFileSync(restartMarker, `${JSON.stringify({ profile: safeProfile, requestedAt: new Date().toISOString() })}\n`)
   recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
+}
+
+/** Enable newly added bundles after the frozen install, preserving existing bundle choices. */
+async function activateNewBundles(profileDir, plugins) {
+  const additions = plugins.filter(plugin => profilePackageBundle(packageInfo(profileDir, plugin.name).manifest)).map(plugin => plugin.name)
+  if (additions.length === 0) return
+  const manifestPath = join(profileDir, 'package.json')
+  await withFileLock(manifestPath, async () => {
+    const manifest = profileManifest(profileDir)
+    const previous = manifest.dsh?.profile?.bundles ?? []
+    const bundles = [...previous, ...additions.filter(name => !previous.includes(name))]
+    if (bundles.length === previous.length) return
+    manifest.dsh ??= {}
+    manifest.dsh.profile ??= {}
+    manifest.dsh.profile.bundles = bundles
+    await writeFileAtomic(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 })
+    if (!isDeepStrictEqual(profileManifest(profileDir), manifest)) throw new Error('New plugin bundle activation did not retain the profile manifest')
+  })
 }
 
 const RESTORE_FILES = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'cordis.patch.yml', PLUGIN_BASELINE_FILENAME, RESTART_MARKER_FILENAME]

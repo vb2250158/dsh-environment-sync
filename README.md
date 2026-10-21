@@ -4,6 +4,10 @@
 
 `npm test` covers environment synchronization, installation and recovery. Independent plugins own their tests without depending on the former monorepo's `plugins/` directory or combined loader IDs.
 
+Web 两阶段安装在冻结锁文件安装完成后启用本次新增且声明 `dsh.bundle` 的包；保留已有 bundle 的启停选择和顺序，不启用普通依赖或仅含客户端的包。启用写入纳入原安装事务，失败恢复原 profile。
+
+Web two-stage installation enables newly added packages declaring `dsh.bundle` after the frozen-lockfile install. Existing bundle choices and order remain intact; ordinary dependencies and client-only packages are not added to the bundle list. Activation belongs to the installation transaction and failures restore the previous profile.
+
 ## Desktop profile
 
 接口描述读取插件自身的 Zod 依赖，独立 Desktop Home 不要求初始化 Web profile。

@@ -212,7 +212,7 @@ test('首次拉取空清单保留未接管插件，已接管插件的本机修�
   }
 })
 
-function fakePnpm(profileDir, calls) {
+function fakePnpm(profileDir, calls, { deferredBundle = false, materializeBundle = true } = {}) {
   return (command, args, options) => {
     const child = new EventEmitter()
     child.stdout = new EventEmitter()
@@ -231,6 +231,7 @@ function fakePnpm(profileDir, calls) {
         const manifestPath = join(profileDir, 'package.json')
         const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
         if (action === 'install') {
+          if (deferredBundle && materializeBundle && args.includes('--frozen-lockfile')) await writePlugin(profileDir, 'example-dsh-bundle', '1.2.3')
           child.stdout.emit('data', 'lockfile updated')
           child.emit('close', 0, null)
           return
@@ -242,7 +243,7 @@ function fakePnpm(profileDir, calls) {
               ? ['client-only-plugin', '2.0.0', false]
               : (() => { throw new Error(`Unexpected add target: ${target}`) })()
           manifest.dependencies[name] = target.startsWith('git+https:') ? target.replace(/#[0-9a-f]{40}$/i, '') : version
-          if (bundle) manifest.dsh.profile.bundles = [...manifest.dsh.profile.bundles.filter(value => value !== name), name]
+          if (bundle && !deferredBundle) manifest.dsh.profile.bundles = [...manifest.dsh.profile.bundles.filter(value => value !== name), name]
         } else if (action === 'remove') {
           delete manifest.dependencies[target]
           manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(value => value !== target)
@@ -260,6 +261,35 @@ function fakePnpm(profileDir, calls) {
     return child
   }
 }
+
+test('两阶段安装后启用新增 bundle，保留原有停用选择和普通依赖', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-deferred-bundle-'))
+  const profileDir = join(root, 'profiles/web'), repositoryPath = join(root, 'private'), sourceRoot = join(root, 'source')
+  try {
+    await writeProfile(profileDir, { 'disabled-bundle': '1.0.0', 'ordinary-library': '1.0.0' }, ['@deepseek-ai/dsh-base'])
+    await writePlugin(profileDir, 'disabled-bundle', '1.0.0')
+    await writePlugin(profileDir, 'ordinary-library', '1.0.0', { bundle: false })
+    await mkdir(join(sourceRoot, 'apps/cli/src'), { recursive: true })
+    await writeFile(join(sourceRoot, 'apps/cli/src/bin.ts'), '')
+    await writeJson(join(repositoryPath, 'config/plugins.json'), {
+      schemaVersion: 2, profile: 'web', plugins: [{ name: 'example-dsh-bundle', version: '1.2.3', specifier: 'example-dsh-bundle@1.2.3' }],
+    })
+    const options = { profileDir, repositoryPath, sourceRoot, spawnCommand: fakePnpm(profileDir, [], { deferredBundle: true }) }
+    await syncThirdPartyPlugins(options)
+    const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+    assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'example-dsh-bundle'])
+    assert.deepEqual(manifest.dependencies, { 'disabled-bundle': '1.0.0', 'ordinary-library': '1.0.0', 'example-dsh-bundle': '1.2.3' })
+    const before = await readFile(join(profileDir, 'package.json'), 'utf8')
+    await syncThirdPartyPlugins(options)
+    assert.equal(await readFile(join(profileDir, 'package.json'), 'utf8'), before)
+    await writeProfile(profileDir, { 'disabled-bundle': '1.0.0', 'ordinary-library': '1.0.0' }, ['@deepseek-ai/dsh-base'])
+    const original = await readFile(join(profileDir, 'package.json'), 'utf8')
+    await rm(join(profileDir, 'node_modules/example-dsh-bundle'), { recursive: true })
+    await assert.rejects(syncThirdPartyPlugins({ ...options, spawnCommand: fakePnpm(profileDir, [], { deferredBundle: true, materializeBundle: false }) }), /Cannot locate package.json.*example-dsh-bundle|example-dsh-bundle.*not installed/)
+    assert.equal(await readFile(join(profileDir, 'package.json'), 'utf8'), original)
+    assert.equal(JSON.parse(await readFile(join(profileDir, '.dsh-plugin-operation.json'), 'utf8')).state, 'restored')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 test('安装失败恢复原 profile，恢复记录支持重试，并拒绝并发安装', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-rollback-'))
@@ -431,6 +461,7 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
     ])
     const restoredProfile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
     assert.equal(restoredProfile.dependencies['client-only-plugin'], 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    assert.deepEqual(restoredProfile.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-environment-sync', 'example-dsh-bundle'])
     assert.deepEqual(result.plugins.map(plugin => plugin.name), ['example-dsh-bundle', 'client-only-plugin'])
     const status = inspectThirdPartyPlugins({ profileDir, repositoryPath: repository })
     assert.equal(status.plugins[0].installed.version, '1.2.3')
