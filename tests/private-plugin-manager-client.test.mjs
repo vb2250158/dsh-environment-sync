@@ -10,7 +10,7 @@ const fakeReact = {
   useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
 }
 
-async function loadClientBundle() {
+async function loadClientBundle(react = fakeReact) {
   let loaded
   const previousWindow = globalThis.window
   globalThis.window = { __ModuleLoader__: { load: value => { loaded = value } } }
@@ -18,7 +18,7 @@ async function loadClientBundle() {
     await import(`${clientBundleUrl}?test=${Date.now()}-${Math.random()}`)
     assert.equal(loaded.id, 'dsh-environment-sync')
     return loaded.factory(id => {
-      if (id === 'react') return fakeReact
+      if (id === 'react') return react
       if (id === '@deepseek-ai/dsh-client-ui-primitives') return { Button: 'DshButton', Modal: 'DshModal' }
       throw new Error(`Unexpected dependency ${id}`)
     })
@@ -79,8 +79,9 @@ test('客户端只配置私有仓库，并提供按清单拉取插件的操作',
   assert.doesNotMatch(source, /本地源码目录|同步源码|克隆公开源码/)
 })
 
-test('预取与页面请求合并，首次等待不显示零数量或空配置', async () => {
-  const client = await loadClientBundle()
+test('启动不读取状态，首次打开面板按需读取并合并请求，保留刷新与缓存', async () => {
+  const effects = []
+  const client = await loadClientBundle({ ...fakeReact, useEffect: callback => effects.push(callback) })
   const { ctx, registered } = context()
   const service = ctx.reflect.get()
   const ready = await service.status()
@@ -89,14 +90,19 @@ test('预取与页面请求合并，首次等待不显示零数量或空配置',
   service.status = () => { calls++; return new Promise(resolve => { resolveStatus = resolve }) }
   ctx.reflect.get = () => service
   await client.apply(ctx)
+  await Promise.resolve()
+  assert.equal(calls, 0)
   const { component, options } = registered[0]
   const actions = options.inject()
-  const first = actions.readStatus()
-  assert.equal(first, actions.readStatus())
-  assert.equal(calls, 1)
   const pending = JSON.stringify(component(actions))
   assert.match(pending, /正在读取配置和插件清单/)
   assert.doesNotMatch(pending, /本机已安装插件|尚未记录插件清单|私有 GitHub 仓库/)
+  assert.equal(calls, 0)
+  effects.shift()()
+  const first = actions.readStatus()
+  assert.equal(first, actions.readStatus())
+  await Promise.resolve()
+  assert.equal(calls, 1)
   resolveStatus(ready)
   await first
   const loaded = JSON.stringify(component(actions))

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.18 (2026-10-21)
+
+- 移除客户端启动时的全量状态预热，改为打开管理面板时读取，减少首屏资源竞争；保留请求合并、刷新、失败提示及已有缓存。
+- Read full status when the management panel opens instead of prefetching it during startup. Preserve request coalescing, refresh, error reporting, and cached panel data.
+
 ## 0.7.17 (2026-10-21)
 
 - 两阶段 Web 安装完成后补启用本次新增的 bundle，修复依赖版本正确但插件未加载的问题；保留原有启停选择，启用失败按原事务恢复。
