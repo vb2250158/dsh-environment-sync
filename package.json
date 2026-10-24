@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.7.18",
+  "version": "0.7.19",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -67,7 +67,7 @@
     "cross-spawn": "7.0.6",
     "proper-lockfile": "4.1.2",
     "yaml": "^2.9.0",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-atomic-write": ">=0.2.1-alpha.1 <0.3.0",

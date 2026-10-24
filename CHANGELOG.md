@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.19 (2026-10-25)
+
+- Pin Zod 4.6.7 to include the oversized-collection validation fix (GHSA-mrhx-c7xc-m3w5); preserve existing plugin behavior and settings.
+- 固定 Zod 4.6.7，包含超大集合校验的资源消耗修复；保留原有插件行为和设置。
+
 ## 0.7.18 (2026-10-21)
 
 - 移除客户端启动时的全量状态预热，改为打开管理面板时读取，减少首屏资源竞争；保留请求合并、刷新、失败提示及已有缓存。
