@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -448,7 +449,15 @@ test('同步按清单调用官方插件入口，并对齐已安装插件', async
       }],
     })
 
-    const result = await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, spawnCommand: fakePnpm(profileDir, calls) })
+    const pnpm = fakePnpm(profileDir, calls)
+    const result = await syncThirdPartyPlugins({ profileDir, repositoryPath: repository, sourceRoot, spawnCommand(command, args, options) {
+      if (args.includes('add')) {
+        const staged = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+        assert.equal(staged.dependencies['example-dsh-bundle'], '1.2.3')
+        assert.equal(staged.dependencies['client-only-plugin'], 'git+https://github.com/community/client-only-plugin.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+      }
+      return pnpm(command, args, options)
+    } })
     assert.ok(calls.every(call => call.command === 'pnpm'))
     assert.ok(calls.every(call => call.options.shell === false))
     assert.deepEqual(calls.map(call => call.args), [

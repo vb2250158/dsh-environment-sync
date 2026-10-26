@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.20 (2026-10-26)
+
+- Stage all target plugin references within the rollback transaction before resolving replacements, preventing superseded Git builds from blocking an upgrade. Official CLI resolution, build approval and frozen installation remain required.
+- 在可回滚事务内先写入全部目标插件引用，再解析替换版本，避免已被替换的旧 Git 包构建失败而阻塞升级；保留官方 CLI、构建授权和冻结安装。
+
 ## 0.7.19 (2026-10-25)
 
 - Pin Zod 4.6.7 to include the oversized-collection validation fix (GHSA-mrhx-c7xc-m3w5); preserve existing plugin behavior and settings.

@@ -1,5 +1,9 @@
 # dsh-environment-sync
 
+Web 安装在现有回滚事务内先暂存清单中的全部目标引用，再调用官方 CLI 解析锁文件，避免解析时重新构建待替换的旧 Git 版本。构建授权、发布前检查及最终冻结安装继续执行。
+
+Web installation stages every target reference inside the existing rollback transaction before official CLI lockfile resolution. Superseded Git sources no longer need rebuilding; build approvals, package checks and the final frozen installation still run.
+
 本仓库的 `npm test` 覆盖环境、安装与恢复流程。独立插件维护各自的测试，不以拆仓前的 `plugins/` 目录或整体仓库的 loader ID 作为依赖。
 
 `npm test` covers environment synchronization, installation and recovery. Independent plugins own their tests without depending on the former monorepo's `plugins/` directory or combined loader IDs.

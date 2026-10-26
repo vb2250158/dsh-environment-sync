@@ -492,6 +492,8 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   // pnpm 11 can reinterpret installed source links as registry versions during add.
   // Resolve against an empty modules directory; the final frozen install owns node_modules.
   if (existsSync(join(profileDir, '.dsh-resolution-modules'))) throw new Error('Dependency resolution directory must be empty and absent')
+  // Resolve replacements together so preparation never rebuilds a superseded Git source.
+  restoreExactDependencySpecifiers(profileDir, manifest.plugins)
   for (const plugin of changed) {
     const result = await run(packageManagerCommand(), ['--dir', dshSourceRoot, 'dsh', 'plugin', '--profile', safeProfile, 'add', '--lockfile-only', '--modules-dir', '.dsh-resolution-modules', '--save-exact', plugin.specifier], { spawnCommand, env })
     commands.push({ name: plugin.name, action: 'add', ...result })
