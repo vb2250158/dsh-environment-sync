@@ -143,6 +143,8 @@ node scripts/takeover-stale-transactions.mjs `
 
 `settings.yaml`、home/profile patch 和 `AGENTS.md` 使用 Git 历史。NAS 设置、情感资料库路径及会话绑定、Rabi Manager 地址不进入共享 settings；目标电脑的 webserver 配置保持本机值。其他机器专用字段可登记在 `private-sync.local.yaml`。
 
+使用 profile 配置保存设置时，`private-sync.local.yaml` 登记的本机字段同时从共享 settings 和 profile patch 中排除；同一配置中的其他字段及插件条目元数据保留。目标电脑应用共享配置时，恢复其自己的本机字段和 webserver 配置。
+
 `.credentials.yaml` 与 `plugins/subscriptions/auth.json` 共同加密到 `credentials.enc.json`，使用 AES-256-GCM 和 scrypt。显式删除的凭据不会从旧文件复活；可选文件只有明确删除记录才会从目标移除。同步密钥、解密后的凭据、资料库及会话数据不得提交。
 
 源码版 DSH 的官方接口依赖在每台电脑上自动绑定到同一份 `DSH_SOURCE_ROOT`，避免旧 npm 接口与新源码混用。这些官方依赖路径和本机锁文件不进入共享插件清单；共享插件本身保持固定 Git 来源。

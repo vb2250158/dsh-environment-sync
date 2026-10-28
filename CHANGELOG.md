@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.21 (2026-10-29)
+
+- Exclude local-overlay fields from both shared settings and the profile patch during profile-config export. Preserve unmasked fields and entry metadata; restore the target computer’s local values when preparing the environment.
+- 使用 profile 配置导出时，从共享 settings 和 profile patch 同时排除本机 overlay 字段；保留未屏蔽字段及条目元数据，准备环境时恢复目标电脑自己的本机值。
+
 ## 0.7.20 (2026-10-26)
 
 - Stage all target plugin references within the rollback transaction before resolving replacements, preventing superseded Git builds from blocking an upgrade. Official CLI resolution, build approval and frozen installation remain required.

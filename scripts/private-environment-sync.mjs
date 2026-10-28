@@ -232,7 +232,7 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
     if (!Array.isArray(patch)) throw new Error('Profile patch must be an array')
     const portable = patch.filter(entry => entry?.id !== 'webserver').map(entry => {
       if (!profileConfig || entry?.config === undefined) return entry
-      const config = sharedSettings({ [entry.id]: entry.config }, MACHINE_SETTINGS)[entry.id]
+      const config = sharedSettings(sharedSettings({ [entry.id]: entry.config }, MACHINE_SETTINGS), overlay)[entry.id]
       const result = { ...entry }
       if (config === undefined) delete result.config
       else result.config = config

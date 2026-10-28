@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { parse } from 'yaml'
+import { parse, stringify } from 'yaml'
 import {
   decryptCredentials,
   encryptCredentials,
   exportPrivateEnvironment,
   importPrivateEnvironment,
   privateEnvironmentPaths,
+  preparePrivateEnvironment,
   resolvePrivateDataRoot,
 } from '../scripts/private-environment-sync.mjs'
 
@@ -225,4 +226,68 @@ test('本机覆盖字段不会再次进入共享快照', async () => {
   } finally {
     await rm(root, { recursive: true, force: true })
   }
+})
+
+test('profile-config export removes dynamic local-overlay fields from both portable channels', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-profile-overlay-export-'))
+  const home = join(root, 'source'), target = join(root, 'target'), data = join(root, 'data')
+  const sourcePath = join(root, 'source-payment-agent'), targetPath = join(root, 'target-payment-agent')
+  const sourceCache = join(root, 'source-cache'), targetCache = join(root, 'target-cache')
+  const rows = [
+    { id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', disabled: false, config: { provider: 'source-provider', model: 'source-model', reasoningEffort: 'high', description: 'shared-default-description' } },
+    { id: 'session-controller', config: { cache: { path: sourceCache, ttlMs: 111, sharedPolicy: 'retain' }, pageSize: 77 } },
+    { id: 'waimai', name: 'dsh-waimai', config: { alipayAgentExecutable: sourcePath, alipayAgentTimeoutMs: 1111, dryRun: true, maxOrderAmount: 50 } },
+    { id: 'masked-only', name: 'fixture-cache', disabled: true, config: { runtime: { path: sourceCache } } },
+    { id: 'ui-theme', config: { preference: 'dark' } },
+    { id: 'webserver', config: { host: '127.0.0.1', port: 10101 } },
+  ]
+  const sourceOverlay = {
+    'agent-default-model': { provider: 'source-provider', model: 'source-model', reasoningEffort: 'high' },
+    'session-controller': { cache: { path: sourceCache, ttlMs: 111 } },
+    waimai: { alipayAgentExecutable: sourcePath, alipayAgentTimeoutMs: 1111 },
+    'masked-only': { runtime: { path: sourceCache } },
+  }
+  const targetOverlay = {
+    'agent-default-model': { provider: 'target-provider', model: 'target-model', reasoningEffort: 'low' },
+    'session-controller': { cache: { path: targetCache, ttlMs: 222 } },
+    waimai: { alipayAgentExecutable: targetPath, alipayAgentTimeoutMs: 2222 },
+    'masked-only': { runtime: { path: targetCache } },
+  }
+  try {
+    await write(join(home, 'profiles/web/package.json'), JSON.stringify({ dependencies: {}, dsh: { profile: { bundles: [] } } }))
+    await write(join(home, 'profiles/web/cordis.patch.yml'), stringify(rows))
+    await write(join(home, 'private-sync.local.yaml'), stringify(sourceOverlay))
+    const options = { dshHomePath: home, dataRootPath: data, profile: 'web', encryptionSecret: 'synthetic-overlay-test-key' }
+    const exported = await exportPrivateEnvironment(options)
+    assert.equal(exported.manifest.settingsStorage, 'profile-config')
+    const expectedSettings = {
+      'agent-default-model': { description: 'shared-default-description' },
+      'session-controller': { cache: { sharedPolicy: 'retain' }, pageSize: 77 },
+      waimai: { dryRun: true, maxOrderAmount: 50 },
+      'ui-theme': { preference: 'dark' },
+      webserver: { host: '127.0.0.1', port: 10101 },
+    }
+    assert.deepEqual(parse(await readFile(join(data, 'settings.yaml'), 'utf8')), expectedSettings)
+    const portable = parse(await readFile(join(data, 'profiles/web/cordis.patch.yml'), 'utf8'))
+    assert.deepEqual(portable.find(row => row.id === 'agent-default-model'), { ...rows[0], config: expectedSettings['agent-default-model'] })
+    assert.deepEqual(portable.find(row => row.id === 'session-controller').config, expectedSettings['session-controller'])
+    assert.deepEqual(portable.find(row => row.id === 'waimai'), { ...rows[2], config: expectedSettings.waimai })
+    assert.deepEqual(portable.find(row => row.id === 'masked-only'), { id: 'masked-only', name: 'fixture-cache', disabled: true })
+    assert.equal(portable.some(row => row.id === 'webserver'), false)
+    const server = { id: 'webserver', config: { host: '127.0.0.1', port: 20202 } }
+    await write(join(target, 'profiles/web/cordis.patch.yml'), stringify([server]))
+    await write(join(target, 'private-sync.local.yaml'), stringify(targetOverlay))
+    const original = await readFile(join(target, 'profiles/web/cordis.patch.yml'), 'utf8')
+    const prepared = await preparePrivateEnvironment({ ...options, dshHomePath: target })
+    const patchWrite = prepared.writes.find(row => row.path === join(target, 'profiles/web/cordis.patch.yml'))
+    assert.ok(patchWrite)
+    const restored = parse(patchWrite.contents)
+    assert.deepEqual(restored.find(row => row.id === 'agent-default-model').config, { ...expectedSettings['agent-default-model'], ...targetOverlay['agent-default-model'] })
+    assert.deepEqual(restored.find(row => row.id === 'session-controller').config, { cache: { sharedPolicy: 'retain', path: targetCache, ttlMs: 222 }, pageSize: 77 })
+    assert.deepEqual(restored.find(row => row.id === 'waimai').config, { ...expectedSettings.waimai, ...targetOverlay.waimai })
+    assert.deepEqual(restored.find(row => row.id === 'masked-only'), { id: 'masked-only', name: 'fixture-cache', disabled: true, config: targetOverlay['masked-only'] })
+    assert.deepEqual(restored.find(row => row.id === 'webserver'), server)
+    assert.equal(await readFile(join(target, 'profiles/web/cordis.patch.yml'), 'utf8'), original)
+    await assert.rejects(readFile(join(target, 'settings.yaml')), { code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
