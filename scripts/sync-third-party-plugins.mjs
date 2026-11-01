@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 
 export const THIRD_PARTY_MANIFEST_FILENAME = 'plugins.json'
-export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 2
+export const THIRD_PARTY_MANIFEST_SCHEMA_VERSION = 3
 export const PRIVATE_PLUGIN_PACKAGE_NAME = 'dsh-environment-sync'
 export const RESTART_MARKER_FILENAME = '.dsh-restart-required'
 export const PLUGIN_BASELINE_FILENAME = '.dsh-plugin-sync-baseline.json'
@@ -211,7 +211,7 @@ export function emptyThirdPartyManifest(profile = 'web') {
 export function readThirdPartyManifest(path, profile = 'web') {
   if (!existsSync(path)) return emptyThirdPartyManifest(profile)
   const value = readJson(path, 'Plugin manifest')
-  if (value.schemaVersion !== THIRD_PARTY_MANIFEST_SCHEMA_VERSION) throw new Error(`Unsupported plugin manifest schema: ${String(value.schemaVersion)}`)
+  if (value.schemaVersion !== 2 && value.schemaVersion !== THIRD_PARTY_MANIFEST_SCHEMA_VERSION) throw new Error(`Unsupported plugin manifest schema: ${String(value.schemaVersion)}`)
   if (value.profile !== undefined && !profilesShareEnvironment(value.profile, profile)) throw new Error(`Plugin manifest profile does not match ${profile}`)
   if (!Array.isArray(value.plugins)) throw new Error('Plugin manifest plugins must be an array')
   const plugins = value.plugins.map(normalizeRecord)
@@ -522,28 +522,30 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   commands.push({ name: 'profile', action: 'install', ...installation })
   if (!installation.ok) throw new Error(`应用插件锁文件失败：${installation.output || `exit ${String(installation.exitCode)}`}`)
   // Lockfile-only adds precede package materialization, so the installer may miss new bundles.
-  await activateNewBundles(profileDir, changed.filter(plugin => !initialDependencies.has(plugin.name)))
+  await reconcileBundleSelection(profileDir, changed.filter(plugin => !initialDependencies.has(plugin.name)), removed)
   const restartMarker = restartMarkerPath(profileDir)
   writeFileSync(restartMarker, `${JSON.stringify({ profile: safeProfile, requestedAt: new Date().toISOString() })}\n`)
   recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
 }
 
-/** Enable newly added bundles after the frozen install, preserving existing bundle choices. */
-async function activateNewBundles(profileDir, plugins) {
+/** Reconcile installed additions and baseline-approved removals, preserving other bundle choices. */
+async function reconcileBundleSelection(profileDir, plugins, removed) {
   const additions = plugins.filter(plugin => profilePackageBundle(packageInfo(profileDir, plugin.name).manifest)).map(plugin => plugin.name)
-  if (additions.length === 0) return
+  if (additions.length === 0 && removed.length === 0) return
   const manifestPath = join(profileDir, 'package.json')
   await withFileLock(manifestPath, async () => {
     const manifest = profileManifest(profileDir)
     const previous = manifest.dsh?.profile?.bundles ?? []
-    const bundles = [...previous, ...additions.filter(name => !previous.includes(name))]
-    if (bundles.length === previous.length) return
+    const removedNames = new Set(removed)
+    const retained = previous.filter(name => !removedNames.has(name))
+    const bundles = [...retained, ...additions.filter(name => !retained.includes(name))]
+    if (isDeepStrictEqual(bundles, previous)) return
     manifest.dsh ??= {}
     manifest.dsh.profile ??= {}
     manifest.dsh.profile.bundles = bundles
     await writeFileAtomic(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 })
-    if (!isDeepStrictEqual(profileManifest(profileDir), manifest)) throw new Error('New plugin bundle activation did not retain the profile manifest')
+    if (!isDeepStrictEqual(profileManifest(profileDir), manifest)) throw new Error('Plugin bundle reconciliation did not retain the profile manifest')
   })
 }
 

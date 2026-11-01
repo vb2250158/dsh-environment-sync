@@ -1,5 +1,9 @@
 # dsh-environment-sync
 
+0.8.0 导出插件清单 schema 3，并兼容读取 schema 2。先通过官方插件安装入口升级同步器，再拉取 schema 3 清单；旧同步器会在修改 profile 前拒绝新清单。Web 冻结安装后清除已接管且获准移除的 bundle 引用，保留其他插件的启停选择。迁移见 [升级说明](docs/upgrade-0.8.0.md)。
+
+Version 0.8.0 exports plugin manifest schema 3 and reads schemas 2 and 3. Upgrade the synchronizer through the official plugin installer before pulling a schema 3 manifest; older synchronizers reject it before profile changes. After a frozen Web install, removed managed bundles are no longer selected; other bundle choices remain unchanged. See the [upgrade guide](docs/upgrade-0.8.0.md).
+
 Web 安装在现有回滚事务内先暂存清单中的全部目标引用，再调用官方 CLI 解析锁文件，避免解析时重新构建待替换的旧 Git 版本。构建授权、发布前检查及最终冻结安装继续执行。
 
 Web installation stages every target reference inside the existing rollback transaction before official CLI lockfile resolution. Superseded Git sources no longer need rebuilding; build approvals, package checks and the final frozen installation still run.

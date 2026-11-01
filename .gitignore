@@ -15,3 +15,4 @@ tests/theme-token-audit.test.mjs
 tests/turn-continuation-client.test.mjs
 docs/*
 !docs/dsh-0.2-compatibility.md
+!docs/upgrade-0.8.0.md

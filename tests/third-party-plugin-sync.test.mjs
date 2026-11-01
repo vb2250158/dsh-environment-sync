@@ -247,7 +247,7 @@ function fakePnpm(profileDir, calls, { deferredBundle = false, materializeBundle
           if (bundle && !deferredBundle) manifest.dsh.profile.bundles = [...manifest.dsh.profile.bundles.filter(value => value !== name), name]
         } else if (action === 'remove') {
           delete manifest.dependencies[target]
-          manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(value => value !== target)
+          if (!args.includes('--lockfile-only')) manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(value => value !== target)
         } else {
           throw new Error(`Unexpected pnpm action: ${String(action)}`)
         }
@@ -262,6 +262,43 @@ function fakePnpm(profileDir, calls, { deferredBundle = false, materializeBundle
     return child
   }
 }
+
+test('只移除已接管插件时清理 bundle，保留其他启停选择', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-removed-bundle-'))
+  const profileDir = join(root, 'profiles/web'), repositoryPath = join(root, 'private'), sourceRoot = join(root, 'source')
+  try {
+    await writeProfile(profileDir, { 'obsolete-dsh-bundle': '1.0.0', 'disabled-bundle': '1.0.0' }, ['@deepseek-ai/dsh-base', 'obsolete-dsh-bundle'])
+    await writePlugin(profileDir, 'obsolete-dsh-bundle', '1.0.0')
+    await writePlugin(profileDir, 'disabled-bundle', '1.0.0')
+    await writeJson(join(profileDir, PLUGIN_BASELINE_FILENAME), { schemaVersion: 2, profile: 'web', plugins: [{ name: 'obsolete-dsh-bundle', version: '1.0.0', specifier: 'obsolete-dsh-bundle@1.0.0' }] })
+    await mkdir(join(sourceRoot, 'apps/cli/src'), { recursive: true })
+    await writeFile(join(sourceRoot, 'apps/cli/src/bin.ts'), '')
+    await writeJson(join(repositoryPath, 'config/plugins.json'), { schemaVersion: 3, profile: 'web', plugins: [] })
+    await syncThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot, spawnCommand: fakePnpm(profileDir, []) })
+    const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+    assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base'])
+    assert.deepEqual(manifest.dependencies, { 'disabled-bundle': '1.0.0' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('清单接受旧版和迁移版，未知版本在写入 profile 前拒绝', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-manifest-generation-'))
+  const path = join(root, 'config/plugins.json'), profileDir = join(root, 'profile')
+  try {
+    for (const schemaVersion of [2, 3]) {
+      await writeJson(path, { schemaVersion, profile: 'web', plugins: [] })
+      assert.equal(readThirdPartyManifest(path).schemaVersion, 3)
+    }
+    await writeJson(path, { schemaVersion: 4, profile: 'web', plugins: [] })
+    await assert.rejects(syncThirdPartyPlugins({ profileDir, repositoryPath: root, spawnCommand() { assert.fail('Unexpected installer') } }), /Unsupported plugin manifest schema/)
+    await assert.rejects(readFile(join(profileDir, 'package.json')), { code: 'ENOENT' })
+    await assert.rejects(readFile(join(profileDir, '.dsh-plugin-operation.json')), { code: 'ENOENT' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 test('两阶段安装后启用新增 bundle，保留原有停用选择和普通依赖', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-deferred-bundle-'))

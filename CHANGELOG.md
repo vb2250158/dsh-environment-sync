@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 (2026-11-01)
+
+- Remove baseline-approved retired bundles after frozen Web installation, including removal-only updates; preserve unrelated bundle selections.
+- Export plugin manifest schema 3, retaining schema 2 reads. Upgrade the synchronizer before importing new manifests so older installers cannot leave a retired bundle selected.
+- Web 冻结安装后清理基线批准移除的 bundle，覆盖仅卸载场景；保留其他启停选择。插件清单导出升级为 schema 3，兼容 schema 2 读取；导入新清单前先升级同步器。
+
 ## 0.7.21 (2026-10-29)
 
 - Exclude local-overlay fields from both shared settings and the profile patch during profile-config export. Preserve unmasked fields and entry metadata; restore the target computer’s local values when preparing the environment.
