@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -27,6 +27,7 @@
     "scripts/private-environment-sync.mjs",
     "scripts/sync-third-party-plugins.mjs",
     "scripts/ensure-dsh-web.ps1",
+    "scripts/dsh-web-runtime.ps1",
     "scripts/bootstrap-environment.ps1",
     "scripts/recover-environment.mjs",
     "README.md",

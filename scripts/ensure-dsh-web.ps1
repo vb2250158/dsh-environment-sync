@@ -3,6 +3,12 @@ param(
   [switch]$Restart
 )
 
+$runtimeHelpers = Join-Path $PSScriptRoot 'dsh-web-runtime.ps1'
+if (-not (Test-Path -LiteralPath $runtimeHelpers -PathType Leaf)) {
+  throw "DSH Web runtime helpers are missing: $runtimeHelpers"
+}
+. $runtimeHelpers
+
 $sourceRoot = $env:DSH_SOURCE_ROOT
 if ([string]::IsNullOrWhiteSpace($sourceRoot)) {
   throw 'DSH_SOURCE_ROOT is required.'
@@ -30,32 +36,6 @@ $standardOutputLog = Join-Path $dshHome 'logs\web-host.stdout.log'
 # version's ABI (NODE_MODULE_VERSION); a mismatched interpreter aborts the boot
 # with ERR_DLOPEN_FAILED. DSH_NODE_BIN wins, then a well-known absolute install,
 # and only then PATH.
-function Resolve-NodeRuntime {
-  $explicit = $env:DSH_NODE_BIN
-  if (-not [string]::IsNullOrWhiteSpace($explicit)) {
-    if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) {
-      throw "DSH_NODE_BIN does not point at a file: $explicit"
-    }
-    return $explicit
-  }
-  # Join-Path throws on a null Path, and ProgramFiles(x86) is absent on 32-bit
-  # Windows, so the roots are filtered before any path is composed.
-  $candidates = @()
-  foreach ($programFiles in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
-    if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
-      $candidates += (Join-Path $programFiles 'nodejs\node.exe')
-    }
-  }
-  foreach ($candidate in $candidates) {
-    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-      return $candidate
-    }
-  }
-  $onPath = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($null -eq $onPath) { throw 'No Node.js runtime found on PATH and no absolute install detected. Set DSH_NODE_BIN.' }
-  return $onPath.Source
-}
-
 # Probe a native addon before anything is stopped, so an ABI mismatch fails
 # while the previous host is still serving. Returns $null when no addon is
 # available to test (nothing to assert either way).
@@ -105,15 +85,14 @@ try {
   }
 
   # Everything that can fail is checked while the current host is still up.
-  $node = Resolve-NodeRuntime
+  $node = Resolve-DshNodeRuntime
   $compatible = Test-NodeRuntimeCompatible -NodePath $node -Root $sourceRoot
   if ($compatible -eq $false) {
     throw "Node runtime $node cannot load the harness native addons (ABI mismatch). The running DSH instance was left untouched. Set DSH_NODE_BIN to a matching runtime, or rebuild the addons for this one."
   }
 
   $listeners | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-  Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
-    Where-Object { $_.CommandLine -match 'apps/cli/src/bin\.ts.*\bweb\b' -and $_.CommandLine -match "(?:^|\\s)--port\\s+$port(?:\\s|$)" } |
+  Get-DshWebHostProcesses -NodePath $node -Port $port |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   $stopDeadline = (Get-Date).AddSeconds(15)
   while (@(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).Count -gt 0 -and (Get-Date) -lt $stopDeadline) {

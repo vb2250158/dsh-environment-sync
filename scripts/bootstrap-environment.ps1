@@ -12,6 +12,12 @@ if (-not (Test-Path -LiteralPath (Join-Path $SourceRoot 'apps\cli\src\bin.ts')))
 if ($Repository -notmatch '^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$') { throw 'Repository must be a GitHub HTTPS URL.' }
 if ([string]::IsNullOrWhiteSpace($DataRoot)) { $DataRoot = Join-Path $DshHome 'private-data' }
 $DataRoot = [IO.Path]::GetFullPath($DataRoot)
+$nodeSelection = ''
+if (-not [string]::IsNullOrWhiteSpace($env:DSH_NODE_BIN)) {
+  . (Join-Path $PSScriptRoot 'dsh-web-runtime.ps1')
+  $selectedNode = Resolve-DshNodeRuntime
+  $nodeSelection = '$env:DSH_NODE_BIN = ' + "'" + $selectedNode.Replace("'", "''") + "'"
+}
 $pluginRoot = Split-Path $PSScriptRoot
 $commit = (& git -C $pluginRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Run this bootstrap from a checked-out plugin Git release.' }
@@ -49,13 +55,14 @@ Add-Type -AssemblyName System.Windows.Forms
 try {
   $env:DSH_HOME = '__HOME__'
   $env:DSH_SOURCE_ROOT = '__SOURCE__'
+  __NODE_SELECTION__
   & node '__PLUGIN__/scripts/recover-environment.mjs' --dsh-home $env:DSH_HOME --source-root $env:DSH_SOURCE_ROOT --repository '__DATA__'
   if ($LASTEXITCODE -ne 0) { throw 'Environment recovery failed; the recovery point remains available.' }
   & '__PLUGIN__/scripts/ensure-dsh-web.ps1' -Restart
   [System.Windows.Forms.MessageBox]::Show('Environment restored. Open DSH to continue.', 'DSH recovery') | Out-Null
 } catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'DSH recovery') | Out-Null }
 '@
-$template = $template.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__SOURCE__',$SourceRoot.Replace("'","''")).Replace('__PLUGIN__',$recoveryRoot.Replace("'","''")).Replace('__DATA__',$DataRoot.Replace("'","''"))
+$template = $template.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__SOURCE__',$SourceRoot.Replace("'","''")).Replace('__PLUGIN__',$recoveryRoot.Replace("'","''")).Replace('__DATA__',$DataRoot.Replace("'","''")).Replace('__NODE_SELECTION__',$nodeSelection)
 [IO.File]::WriteAllText($recoveryScript, $template + "`n")
 $command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $recoveryScript + '"'
 [IO.File]::WriteAllText((Join-Path $DshHome 'Recover DSH.vbs'), 'CreateObject("WScript.Shell").Run "' + $command.Replace('"','""') + '", 0, False' + "`n")
@@ -64,9 +71,10 @@ $startTemplate = @'
 $ErrorActionPreference = 'Stop'
 $env:DSH_HOME = '__HOME__'
 $env:DSH_SOURCE_ROOT = '__SOURCE__'
+__NODE_SELECTION__
 & '__PLUGIN__/scripts/ensure-dsh-web.ps1'
 '@
-$startTemplate = $startTemplate.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__SOURCE__',$SourceRoot.Replace("'","''")).Replace('__PLUGIN__',$recoveryRoot.Replace("'","''"))
+$startTemplate = $startTemplate.Replace('__HOME__',$DshHome.Replace("'","''")).Replace('__SOURCE__',$SourceRoot.Replace("'","''")).Replace('__PLUGIN__',$recoveryRoot.Replace("'","''")).Replace('__NODE_SELECTION__',$nodeSelection)
 [IO.File]::WriteAllText($startScript, $startTemplate + "`n")
 $startCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $startScript + '"'
 [IO.File]::WriteAllText((Join-Path $DshHome 'Start DSH.vbs'), 'CreateObject("WScript.Shell").Run "' + $startCommand.Replace('"','""') + '", 0, False' + "`n")

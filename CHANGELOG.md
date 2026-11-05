@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 (2026-11-05)
+
+- Share Windows Node resolution and source Web Host identification between launchers and supervisors, including renamed runtime executables; standalone restart recovery copies the helper as well. Bootstrap preserves explicit runtime selection without fixing the default. Existing pause and restart semantics remain unchanged.
+- 复用 Windows Node 解析与源码 Web Host 识别，支持更名的解释器；独立重启恢复同时复制辅助脚本。bootstrap 保留显式解释器选择、不固定默认值，保留现有暂停与重启语义。
+
 ## 0.8.0 (2026-11-01)
 
 - Remove baseline-approved retired bundles after frozen Web installation, including removal-only updates; preserve unrelated bundle selections.

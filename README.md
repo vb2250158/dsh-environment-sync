@@ -94,6 +94,10 @@ fork 类插件通常同时存在自己的仓库与原作者远端，而分支的
 
 Git 必须已获得私有仓库读取权限。首次进入“插件 → 环境同步 → 配置”，填写与原电脑相同的同步密钥，然后点击“拉取并应用”。密钥只保存在本机 `private-sync.key`，通过仓库之外的安全渠道传递。安装目录中的恢复运行时须保留；本机 `Recover DSH.vbs` 提供不依赖 DSH 页面启动的恢复窗口。
 
+Windows 源码 Web 启动支持用 `DSH_NODE_BIN` 指定版本兼容、具有独立名称和图标的 Node 可执行文件，不覆盖系统 Node。解析顺序仍为显式 `DSH_NODE_BIN`、标准安装路径、`PATH`。bootstrap 仅在用户已显式设置非空 `DSH_NODE_BIN` 时，把其解析后的路径写入生成的启动和恢复脚本；未设置时不固定默认解释器。`scripts/dsh-web-runtime.ps1` 提供 `Resolve-DshNodeRuntime` 和 `Get-DshWebHostProcesses`，供启动器与本机守护共同使用；Host 识别同时检查所选可执行文件名、完整路径、官方源码 Web CLI 参数和端口，不依赖固定的 `node.exe` 名称。自定义守护应保留同一个 `DSH_NODE_BIN`，不能再次覆盖为系统 Node。单独复制 `ensure-dsh-web.ps1` 到恢复目录时，必须同时复制该辅助脚本；缺失辅助脚本会明确报错。当前启动器不读取 `web-supervisor.stop`，维护暂停与恢复仍由部署者现有的启动和守护流程负责，本更新不改变其语义。
+
+Windows source Web launchers accept `DSH_NODE_BIN` for a compatible Node executable with a deployment-owned name and icon, leaving the system Node unchanged. Resolution remains explicit `DSH_NODE_BIN`, standard installation paths, then `PATH`. Bootstrap records a resolved runtime path in generated startup and recovery scripts only when the user explicitly supplied a nonempty `DSH_NODE_BIN`; otherwise the default remains dynamic. `scripts/dsh-web-runtime.ps1` exports `Resolve-DshNodeRuntime` and `Get-DshWebHostProcesses` for the launcher and local supervisor. Host identification checks the selected executable filename, full path, source Web CLI arguments and port. A custom supervisor must preserve the same selection. Copy the helper alongside any standalone recovery copy of `ensure-dsh-web.ps1`; a missing helper fails explicitly. The launcher does not read `web-supervisor.stop`; existing deployment pause and resume behavior remains unchanged.
+
 ## 日常操作
 
 ### 接管遗留环境事务（仅维护窗口）
