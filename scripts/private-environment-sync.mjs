@@ -142,6 +142,56 @@ function sharedSettings(settings, overlay) {
   return result
 }
 
+/** Retained overlay values cannot reintroduce machine paths, device addresses or credential material. */
+function portableOverlayValue(value, name = '', ancestors = new Set()) {
+  if (/^(?:api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|secret|client[-_]?secret|private[-_]?key|authorization|cookie|credentials?)$/i.test(name) || /(?:path|directory|dir|root)$/i.test(name)) return false
+  if (typeof value === 'string') {
+    if (/^(?:[a-z]:[\\/]|[\\/]|~[\\/]|\.\.?[\\/]|file:)/i.test(value)) return false
+    const device = host => /^(?:localhost|0\.0\.0\.0|127(?:\.|$)|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|f[cd][a-f0-9]{2}:|fe[89ab][a-f0-9]:)/i.test(host.replace(/^\[|\]$/g, ''))
+    if (device(value)) return false
+    let url
+    try { url = new URL(value) } catch { return true }
+    return !url.username && !url.password && !device(url.hostname) && !/\.(?:local|lan|internal)$/i.test(url.hostname)
+  }
+  if (value === null || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object' || ancestors.has(value)) return false
+  ancestors.add(value)
+  const valid = (Array.isArray(value) ? value.map(item => ['', item]) : Object.entries(value)).every(([key, item]) => portableOverlayValue(item, key, ancestors))
+  ancestors.delete(value)
+  return valid
+}
+
+/** Select only explicit overlay leaves already present in the previous shared snapshot. */
+function retainedOverlaySettings(previous, overlay) {
+  const result = {}
+  for (const [key, mask] of Object.entries(overlay)) {
+    if (!Object.hasOwn(previous, key)) continue
+    const value = previous[key]
+    if (mask !== null && typeof mask === 'object' && !Array.isArray(mask)) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) continue
+      const nested = retainedOverlaySettings(value, mask)
+      if (Object.keys(nested).length) result[key] = nested
+    } else if (portableOverlayValue(value, key)) result[key] = structuredClone(value)
+  }
+  return result
+}
+
+/** Retaining masked leaves must not reorder existing YAML keys into unrelated merge conflicts. */
+function orderedSettings(settings, previous) {
+  if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) return settings
+  const prior = previous !== null && typeof previous === 'object' && !Array.isArray(previous) ? previous : {}
+  return Object.fromEntries([...new Set([...Object.keys(prior), ...Object.keys(settings)])].filter(key => Object.hasOwn(settings, key)).map(key => [key, orderedSettings(settings[key], prior[key])]))
+}
+
+/** Compute portable settings without reading or writing Home; explicit local overrides retain prior portable shared values. */
+export function exportSharedSettings({ settings, previous = {}, localOnly }) {
+  const hardMask = { ...MACHINE_SETTINGS, localOnlyPlugins: null, ...Object.fromEntries([...localOnly.names, ...localOnly.entryIds].map(id => [id, null])) }
+  const current = sharedSettings(sharedSettings(settings, hardMask), localOnly.settingsMask)
+  const portable = sharedSettings(deepMerge(current, retainedOverlaySettings(previous, localOnly.settings)), hardMask)
+  return orderedSettings(portable, deepMerge(previous, settings))
+}
+
 function encryptionKey(dshHomePath, supplied, create = true) {
   if (typeof supplied === 'string' && supplied !== '') return supplied
   if (typeof process.env.DSH_PRIVATE_SYNC_KEY === 'string' && process.env.DSH_PRIVATE_SYNC_KEY !== '') return process.env.DSH_PRIVATE_SYNC_KEY
@@ -213,12 +263,16 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const effectiveSettings = profileConfig
     ? settingsFromProfile(await readText(join(profileDir, 'cordis.patch.yml')))
     : parseMapping(settingsSource, 'DSH settings')
-  const overlay = localOnly.settingsMask
-  const portableSettings = sharedSettings(sharedSettings(effectiveSettings, MACHINE_SETTINGS), overlay)
   const profileManifest = JSON.parse(await readText(join(profileDir, 'package.json'), true))
   const inventory = profileInventory(profileManifest, localOnly)
   const previousManifestSource = await readText(paths.manifest)
   const previousManifest = previousManifestSource === '' ? {} : JSON.parse(previousManifestSource)
+  let previousSettings = {}
+  if (previousManifestSource !== '') {
+    if (![1, PRIVATE_ENVIRONMENT_SCHEMA_VERSION].includes(previousManifest.schemaVersion) || !profilesShareEnvironment(previousManifest.profile, safeProfile) || previousManifest.included?.settings !== true) throw new TypeError('Previous shared environment manifest is invalid for this profile')
+    previousSettings = normalizeSettings(parseMapping(await readText(paths.settings, true), 'Previous shared DSH settings'))
+  }
+  const portableSettings = exportSharedSettings({ settings: effectiveSettings, previous: previousSettings, localOnly })
   const agentPresets = await exportAgentPresets(dshHome, paths.root, previousManifest.agentPresets)
 
   await writeAtomic(paths.settings, stringify(portableSettings))
@@ -235,7 +289,7 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
     if (!Array.isArray(patch)) throw new Error('Profile patch must be an array')
     const portable = selectLocalPatchRows(patch, localOnly, false).filter(entry => key !== 'profilePatch' || entry?.id !== 'webserver').map(entry => {
       if (key !== 'profilePatch' || !profileConfig || entry?.config === undefined) return entry
-      const config = sharedSettings(sharedSettings({ [entry.id]: entry.config }, MACHINE_SETTINGS), overlay)[entry.id]
+      const config = exportSharedSettings({ settings: { [entry.id]: entry.config }, previous: previousSettings, localOnly })[entry.id]
       const result = { ...entry }
       if (config === undefined) delete result.config
       else result.config = config

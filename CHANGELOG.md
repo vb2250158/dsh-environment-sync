@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.3 (2026-11-06)
+
+- Preserve prior portable shared values masked by explicit machine overlays during export, consistently across settings and profile configuration. Keep unmasked changes/deletions, original key order, initial-export exclusion and hard machine/local-plugin isolation. Reject invalid prior snapshots before changing the preset baseline.
+- 修复 0.8.2 及此前导出会删除被本机 overlay 遮住的共享值；settings/profile-config 统一保留旧可移植值，未遮罩修改与删除照常输出，保留键序避免无关 Git 冲突。没有旧快照不上传本机值，机器字段和 local-only 插件仍隔离；旧快照无效时在修改预设基准前拒绝。正式安装和运行加载仍需独立验收。
+
 ## 0.8.2 (2026-11-06)
 
 - Add explicit `localOnlyPlugins` ownership in the existing machine overlay. Use one declaration for portable plugin/environment export, local patch/settings retention, incoming package selection, baseline removals and rollback. Keep undeclared local sources rejected and expose declarations in status.

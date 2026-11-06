@@ -1,5 +1,9 @@
 # dsh-environment-sync
 
+0.8.3 修复 0.8.2 及此前导出时把本机 overlay 误当作共享字段删除的问题。已有可信快照时，显式 overlay 遮住的可移植叶值保留原共享值；本机差异仍只在该电脑导入时覆盖。settings 与 profile-config 使用同一规则，未遮罩的修改和删除照常同步。首次导出没有旧值时不上传本机值。机器路径、设备地址、凭据内容、固定机器命名空间及 local-only 插件继续排除；环境变量凭据引用和模型标识仍可移植。先按正常流程接收，再发布；已有 Home 仍以真实 appliedCommit 为基准，不能在最新 clone 上导出旧环境。源码验证与正式安装、运行加载分开验收。
+
+Version 0.8.3 fixes exports in 0.8.2 and earlier that treated local overlays as shared-field deletions. Explicitly masked portable leaves retain their prior trusted shared values, while import applies this computer's overrides. Settings and profile configuration use the same rule; unmasked edits and deletions still synchronize. Without a prior snapshot, masked local values stay excluded. Machine paths, device addresses, credential material, fixed machine namespaces and local-only plugins remain excluded; credential environment references and model identifiers remain portable. Receive before publishing and retain the real applied-commit baseline for an existing Home. Source checks do not establish installation or runtime acceptance.
+
 0.8.2 支持显式保留机器本地插件。在本机 DSH Home 的 `private-sync.local.yaml` 添加以下字段；默认是空数组。`name` 是包名，`entryIds` 列出该插件的本机设置或 Loader 行 ID，包名不必与行 ID 相同；没有额外行时使用 `[]`。
 
 先安装并加载 0.8.2，再添加声明；旧版不识别这个本机控制字段。其他电脑不复制本机声明，按其实际集成分别配置。
