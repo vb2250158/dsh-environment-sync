@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseDocument, stringify } from 'yaml'
 import { exportAgentPresets, prepareAgentPresets } from '../lib/agent-preset-sync.js'
 import { profilesShareEnvironment } from './sync-third-party-plugins.mjs'
+import { readMachineLocalSettings, selectLocalPatchRows } from '../lib/local-only-plugins.js'
 
 export const PRIVATE_ENVIRONMENT_SCHEMA_VERSION = 2
 export const PRIVATE_SYNC_KEY_FILENAME = 'private-sync.key'
@@ -184,11 +185,12 @@ export function decryptCredentials(payload, secret) {
   return Buffer.concat([decipher.update(Buffer.from(payload.ciphertext, 'base64')), decipher.final()]).toString('utf8')
 }
 
-function profileInventory(manifest) {
-  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : []
+function profileInventory(manifest, localOnly) {
+  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles.filter(name => !localOnly.names.has(name)) : []
   const dependencies = manifest?.dependencies !== null && typeof manifest?.dependencies === 'object'
-    ? Object.entries(manifest.dependencies).filter(([name]) => !name.startsWith('@deepseek-ai/')).map(([name, specifier]) => ({ name, specifier }))
+    ? Object.entries(manifest.dependencies).filter(([name]) => !name.startsWith('@deepseek-ai/') && !localOnly.names.has(name)).map(([name, specifier]) => ({ name, specifier }))
     : []
+  if (dependencies.some(row => /^(?:link:|file:|workspace:)/.test(row.specifier))) throw new Error('A local-only dependency must be declared in private-sync.local.yaml localOnlyPlugins before export')
   return { bundles, dependencies }
 }
 
@@ -200,8 +202,9 @@ function settingsFromProfile(source) {
 }
 
 /** Export complete portable DSH configuration into a separate private data directory. */
-export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret } = {}) {
+export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret, localOnly } = {}) {
   const dshHome = resolve(dshHomePath || join(homedir(), '.dsh'))
+  localOnly ??= readMachineLocalSettings(dshHome)
   const safeProfile = requireProfile(profile)
   const paths = privateEnvironmentPaths(dataRootPath, safeProfile)
   const profileDir = join(dshHome, 'profiles', safeProfile)
@@ -210,11 +213,10 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   const effectiveSettings = profileConfig
     ? settingsFromProfile(await readText(join(profileDir, 'cordis.patch.yml')))
     : parseMapping(settingsSource, 'DSH settings')
-  const overlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
-  const overlay = overlaySource === '' ? {} : parseMapping(overlaySource, 'Machine-local DSH settings overlay')
+  const overlay = localOnly.settingsMask
   const portableSettings = sharedSettings(sharedSettings(effectiveSettings, MACHINE_SETTINGS), overlay)
   const profileManifest = JSON.parse(await readText(join(profileDir, 'package.json'), true))
-  const inventory = profileInventory(profileManifest)
+  const inventory = profileInventory(profileManifest, localOnly)
   const previousManifestSource = await readText(paths.manifest)
   const previousManifest = previousManifestSource === '' ? {} : JSON.parse(previousManifestSource)
   const agentPresets = await exportAgentPresets(dshHome, paths.root, previousManifest.agentPresets)
@@ -227,18 +229,19 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
   }
   const deleted = Object.keys(included).filter(key => !included[key] && (previousManifest.included?.[key] === true || previousManifest.deleted?.includes(key)))
   for (const key of deleted) await rm(paths[key], { force: true })
-  if (included.profilePatch) {
-    const patch = parseDocument(await readText(paths.profilePatch, true)).toJS()
+  for (const key of ['homePatch', 'profilePatch']) {
+    if (!included[key]) continue
+    const patch = parseDocument(await readText(paths[key], true)).toJS()
     if (!Array.isArray(patch)) throw new Error('Profile patch must be an array')
-    const portable = patch.filter(entry => entry?.id !== 'webserver').map(entry => {
-      if (!profileConfig || entry?.config === undefined) return entry
+    const portable = selectLocalPatchRows(patch, localOnly, false).filter(entry => key !== 'profilePatch' || entry?.id !== 'webserver').map(entry => {
+      if (key !== 'profilePatch' || !profileConfig || entry?.config === undefined) return entry
       const config = sharedSettings(sharedSettings({ [entry.id]: entry.config }, MACHINE_SETTINGS), overlay)[entry.id]
       const result = { ...entry }
       if (config === undefined) delete result.config
       else result.config = config
       return result
     })
-    await writeAtomic(paths.profilePatch, stringify(portable))
+    await writeAtomic(paths[key], stringify(portable))
   }
 
   const credentialFiles = Object.fromEntries(await Promise.all(CREDENTIAL_FILES.map(async path => [path, (await readText(join(dshHome, path))) || null])))
@@ -273,8 +276,9 @@ export async function exportPrivateEnvironment({ dshHomePath, dataRootPath, prof
 }
 
 /** Validate all incoming files and decrypt credentials without changing the DSH home. */
-export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret } = {}) {
+export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, profile = 'web', encryptionSecret, localOnly } = {}) {
   const dshHome = resolve(dshHomePath || join(homedir(), '.dsh'))
+  localOnly ??= readMachineLocalSettings(dshHome)
   const safeProfile = requireProfile(profile)
   let paths = privateEnvironmentPaths(dataRootPath, safeProfile)
   const profileDir = join(dshHome, 'profiles', safeProfile)
@@ -284,14 +288,14 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
   }
   paths = privateEnvironmentPaths(dataRootPath, manifest.profile)
 
-  const snapshotSettings = normalizeSettings(parseMapping(await readText(paths.settings, true), 'Private DSH settings'))
+  const snapshotSettings = sharedSettings(normalizeSettings(parseMapping(await readText(paths.settings, true), 'Private DSH settings')), { localOnlyPlugins: null, ...Object.fromEntries([...localOnly.entryIds].map(id => [id, null])) })
   const currentSource = await readText(join(dshHome, 'settings.yaml'))
   const profileConfig = manifest.settingsStorage === 'profile-config' || (currentSource === '' && existsSync(join(dshHome, 'settings.yaml.imported')))
   const currentSettings = currentSource === '' && profileConfig
     ? settingsFromProfile(await readText(join(profileDir, 'cordis.patch.yml')))
     : currentSource === '' ? {} : parseMapping(currentSource, 'Current DSH settings')
-  const localOverlaySource = await readText(join(dshHome, PRIVATE_SYNC_LOCAL_SETTINGS_FILENAME))
-  const localOverlay = deepMerge(pickMachineSettings(currentSettings), localOverlaySource === '' ? {} : parseMapping(localOverlaySource, 'Machine-local DSH settings overlay'))
+  const retainedSettings = Object.fromEntries([...localOnly.entryIds].filter(id => Object.hasOwn(currentSettings, id)).map(id => [id, currentSettings[id]]))
+  const localOverlay = deepMerge(deepMerge(pickMachineSettings(currentSettings), localOnly.settings), retainedSettings)
   const writes = profileConfig ? [] : [{ path: join(dshHome, 'settings.yaml'), contents: stringify(deepMerge(sharedSettings(snapshotSettings, MACHINE_SETTINGS), localOverlay)) }]
   const imported = {}
   imported.agentPresets = Object.hasOwn(manifest, 'agentPresets')
@@ -300,13 +304,21 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
     if (typeof manifest.included?.[key] !== 'boolean') throw new TypeError(`Private environment inclusion flag is missing: ${key}`)
     imported[key] = manifest.included[key]
     if (!imported[key]) {
-      if (manifest.deleted?.includes(key)) writes.push({ path: target, contents: null })
+      if (manifest.deleted?.includes(key)) {
+        const source = key === 'instructions' ? '' : await readText(target)
+        const retained = source === '' ? [] : selectLocalPatchRows(parseDocument(source).toJS(), localOnly, true)
+        writes.push({ path: target, contents: retained.length ? stringify(retained) : null })
+      }
       continue
     }
     let contents = await readText(paths[key], true)
     if (key !== 'instructions') {
       const document = parseDocument(contents)
       if (document.errors.length > 0) throw new Error(`Invalid ${key}: ${document.errors[0].message}`)
+    }
+    if (key === 'homePatch') {
+      const current = await readText(target)
+      contents = stringify([...selectLocalPatchRows(parseDocument(contents).toJS(), localOnly, false), ...selectLocalPatchRows(current === '' ? [] : parseDocument(current).toJS(), localOnly, true)])
     }
     if (key === 'profilePatch') {
       const current = await readText(target)
@@ -321,7 +333,7 @@ export async function preparePrivateEnvironment({ dshHomePath, dataRootPath, pro
           row.config = deepMerge(row.config ?? {}, config)
         }
       }
-      contents = stringify([...incoming.filter(entry => entry?.id !== 'webserver'), ...local.filter(entry => entry?.id === 'webserver')])
+      contents = stringify([...selectLocalPatchRows(incoming, localOnly, false).filter(entry => entry?.id !== 'webserver'), ...local.filter(entry => entry?.id === 'webserver'), ...selectLocalPatchRows(local, localOnly, true)])
     }
     writes.push({ path: target, contents })
   }

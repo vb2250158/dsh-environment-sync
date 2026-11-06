@@ -1,5 +1,29 @@
 # dsh-environment-sync
 
+0.8.2 支持显式保留机器本地插件。在本机 DSH Home 的 `private-sync.local.yaml` 添加以下字段；默认是空数组。`name` 是包名，`entryIds` 列出该插件的本机设置或 Loader 行 ID，包名不必与行 ID 相同；没有额外行时使用 `[]`。
+
+先安装并加载 0.8.2，再添加声明；旧版不识别这个本机控制字段。其他电脑不复制本机声明，按其实际集成分别配置。
+
+```yaml
+localOnlyPlugins:
+  - name: local-workspace-plugin
+    entryIds: [local-workspace-settings]
+```
+
+同一声明从共享插件清单、环境依赖、bundle 选择、设置及 Home/profile patch 中排除这些本机项目；导入保留本机现有依赖、bundle、设置和启停行，远端同名项目不能覆盖它们。直接以声明包名或其子路径加载、未指定 ID 的 patch 行也会保留。文件路径形式的自定义行须指定 ID 并列入 `entryIds`。声明只读取本机文件，不从共享快照读取；未声明的 `link:`、`file:` 或 `workspace:` 依赖仍拒绝导出。该保留字段不会成为设置命名空间。状态 API 的 `localOnlyPlugins` 返回本机声明，用户可在上述文件查看、修改或取消。
+
+0.8.2 keeps explicitly declared machine-local plugins out of portable snapshots. Add `localOnlyPlugins` to the existing local overlay as shown above; it defaults to `[]`. `name` identifies the package and `entryIds` identifies its local settings and Loader rows. Export omits those packages, bundle selections, settings and Home/profile patch rows. Import retains the local dependency, bundle and configuration even if the shared snapshot lists the same name. Bare package/subpath rows are recognized without an ID; file-path rows need an explicit ID in `entryIds`. Shared snapshots cannot change this declaration, and undeclared local-only dependencies still fail export.
+
+Install and load 0.8.2 before adding the declaration; earlier versions do not recognize this local control field. Configure each computer's own integrations instead of copying another computer's declaration.
+
+配置同步目录仍通过插件原有的仓库设置指定，须是同一个私有配置仓库的干净普通 Git clone。未提交草稿保持原样并阻止覆盖；不同用途的 Agent 开发资产可保留原目录，正常环境导入不会调用技能链接脚本或重绑 Codex/WorkBuddy 的资产入口。共享预设仅指 DSH Home 的 `.agent-presets`。同步配置不是复制框架源码；框架和插件源码继续使用公开来源，凭据只以密文进入私有配置仓库。不要将 linked Git worktree 直接用作此同步目录，其 `.git` 文件不满足当前同步锁路径。
+
+The existing repository settings select a clean ordinary clone of the same private configuration repository. Uncommitted drafts remain protected. Environment import does not run Agent-asset linking scripts or move other clients' skill links; portable user presets are scoped to the DSH Home's `.agent-presets`. Public framework/plugin source stays separate from private configuration and encrypted credentials. Linked Git worktrees are not supported as the synchronization directory by the current Git-lock path.
+
+本次维护目标：Windows x64、Node 24.15.0、源码 Web 宿主 DSH `0.2.2-alpha.3` / `3ff2154e44fcec3b98e1c529ae9f62b26b20096c`。本仓库验证当前同步拥有者、真实 Git 合并、导出/导入、安装恢复和 Host Remote 描述；正式安装与加载状态由目标电脑另行回读，不把源码检查写成已实装，不追加旧宿主或其他产品矩阵。
+
+Maintained target: Windows x64, Node 24.15.0, source-Web DSH `0.2.2-alpha.3` at `3ff2154e44fcec3b98e1c529ae9f62b26b20096c`. Checks cover the current synchronization owner, real Git workflow, export/import, installation recovery and Host Remote metadata. Installation and actual loading are verified separately on the target computer.
+
 0.8.0 导出插件清单 schema 3，并兼容读取 schema 2。先通过官方插件安装入口升级同步器，再拉取 schema 3 清单；旧同步器会在修改 profile 前拒绝新清单。Web 冻结安装后清除已接管且获准移除的 bundle 引用，保留其他插件的启停选择。迁移见 [升级说明](docs/upgrade-0.8.0.md)。
 
 Version 0.8.0 exports plugin manifest schema 3 and reads schemas 2 and 3. Upgrade the synchronizer through the official plugin installer before pulling a schema 3 manifest; older synchronizers reject it before profile changes. After a frozen Web install, removed managed bundles are no longer selected; other bundle choices remain unchanged. See the [upgrade guide](docs/upgrade-0.8.0.md).

@@ -1,6 +1,6 @@
 {
   "name": "dsh-environment-sync",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Open-source DSH environment synchronization and personal plugin management.",
   "type": "module",
   "main": "lib/index.js",
@@ -18,6 +18,7 @@
     "lib/client.js",
     "lib/index.js",
     "lib/private-plugin-manager.js",
+    "lib/local-only-plugins.js",
     "lib/environment-workflow.js",
     "lib/environment-apply.js",
     "lib/agent-preset-sync.js",
@@ -61,7 +62,7 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check lib/agent-preset-sync.js && node --check lib/stale-takeover.js && node --check scripts/takeover-stale-transactions.mjs && node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/environment-workflow.js && node --check lib/environment-apply.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
+    "check": "node --check lib/local-only-plugins.js && node --check lib/agent-preset-sync.js && node --check lib/stale-takeover.js && node --check scripts/takeover-stale-transactions.mjs && node --check lib/index.js && node --check lib/private-plugin-manager.js && node --check lib/environment-workflow.js && node --check lib/environment-apply.js && node --check lib/client.js && node --check lib/typert.host.js && node --check scripts/private-environment-sync.mjs && node --check scripts/sync-third-party-plugins.mjs"
   },
   "dependencies": {
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.1",

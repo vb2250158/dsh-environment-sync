@@ -1,6 +1,7 @@
 /** Record and reproduce portable DSH profile plugins. */
 
 import spawn from 'cross-spawn'
+import { readMachineLocalSettings } from '../lib/local-only-plugins.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import lockfile from 'proper-lockfile'
@@ -248,8 +249,8 @@ export function readInstalledThirdPartyPlugins(profileDir, { includeManager = fa
 }
 
 /** Validate installed sources and build a portable manifest without writing files. */
-export function prepareThirdPartyPlugins({ profileDir, profile = 'web' }) {
-  const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true })
+export function prepareThirdPartyPlugins({ profileDir, profile = 'web', localOnly = readMachineLocalSettings(dirname(dirname(resolve(profileDir)))) }) {
+  const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true }).filter(plugin => !localOnly.names.has(plugin.name))
   const plugins = installed.map(plugin => {
     const specifier = portableSpecifier(plugin.name, plugin.requested, plugin.version)
     const repositoryOwner = githubRepositoryOwner(specifier)
@@ -277,18 +278,19 @@ export function exportThirdPartyPlugins(options) {
 }
 
 /** Record the plugin set successfully shared or installed on this computer. */
-export function recordPluginBaseline({ profileDir, repositoryPath, profile = 'web' }) {
+export function recordPluginBaseline({ profileDir, repositoryPath, profile = 'web', localOnly = readMachineLocalSettings(dirname(dirname(resolve(profileDir)))) }) {
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), profile)
+  manifest.plugins = manifest.plugins.filter(plugin => !localOnly.names.has(plugin.name))
   if (!existsSync(manifestPath(repositoryPath))) throw new Error('Cannot record a missing plugin manifest')
   writeJsonAtomically(join(resolve(profileDir), PLUGIN_BASELINE_FILENAME), manifest)
 }
 
 /** Preserve unowned plugins and reject remote deletions of locally changed plugins. */
-function staleManagedPlugins(profileDir, installed, desiredNames, profile) {
+function staleManagedPlugins(profileDir, installed, desiredNames, profile, localOnly) {
   const path = join(resolve(profileDir), PLUGIN_BASELINE_FILENAME)
   const baseline = existsSync(path) ? readThirdPartyManifest(path, profile).plugins : []
   return installed.filter(plugin => {
-    if (plugin.name === PRIVATE_PLUGIN_PACKAGE_NAME) return false
+    if (plugin.name === PRIVATE_PLUGIN_PACKAGE_NAME || localOnly.names.has(plugin.name)) return false
     if (desiredNames.has(plugin.name)) return false
     const previous = baseline.find(record => record.name === plugin.name)
     if (previous === undefined) return false
@@ -456,10 +458,11 @@ export async function retainDesktopGitSource(profileDir, name, specifier) {
 }
 
 /** Install the manifest's plugins and remove stale profile plugins. */
-async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn, packageManifests = [], desktopManager }) {
+async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot = '', profile = 'web', spawnCommand = spawn, packageManifests = [], desktopManager, localOnly }) {
   const safeProfile = profileName(profile)
   if (!existsSync(manifestPath(repositoryPath))) throw new Error('Plugin manifest is missing; no plugins were changed')
   const manifest = readThirdPartyManifest(manifestPath(repositoryPath), safeProfile)
+  manifest.plugins = manifest.plugins.filter(plugin => !localOnly.names.has(plugin.name))
   const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true })
   const initialManifest = profileManifest(profileDir)
   const initialDependencies = new Set(Object.keys({ ...initialManifest.dependencies, ...initialManifest.devDependencies }))
@@ -468,9 +471,9 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
     const current = installed.find(item => item.name === plugin.name)
     return current === undefined || current.version !== plugin.version || current.requested !== (sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version)
   })
-  const removed = staleManagedPlugins(profileDir, installed, desiredNames, safeProfile)
+  const removed = staleManagedPlugins(profileDir, installed, desiredNames, safeProfile, localOnly)
   if (changed.length === 0 && removed.length === 0) {
-    recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
+    recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile, localOnly })
     return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands: [], restartRequired: existsSync(restartMarkerPath(profileDir)) }
   }
   if (safeProfile === 'desktop') {
@@ -482,7 +485,7 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
     }
     for (const name of removed) commands.push(await changeDesktopBundle(desktopManager, 'remove', name, undefined, profileDir))
     writeJsonAtomically(restartMarkerPath(profileDir), { profile: safeProfile, requestedAt: new Date().toISOString() })
-    recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
+    recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile, localOnly })
     return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
   }
   const dshSourceRoot = resolveSourceRoot(sourceRoot)
@@ -525,7 +528,7 @@ async function applyThirdPartyPlugins({ profileDir, repositoryPath, sourceRoot =
   await reconcileBundleSelection(profileDir, changed.filter(plugin => !initialDependencies.has(plugin.name)), removed)
   const restartMarker = restartMarkerPath(profileDir)
   writeFileSync(restartMarker, `${JSON.stringify({ profile: safeProfile, requestedAt: new Date().toISOString() })}\n`)
-  recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile })
+  recordPluginBaseline({ profileDir, repositoryPath, profile: safeProfile, localOnly })
   return { manifestPath: manifestPath(repositoryPath), profile: safeProfile, plugins: readInstalledThirdPartyPlugins(profileDir), commands, restartRequired: true }
 }
 
@@ -597,6 +600,8 @@ function restoreProfileFiles(profileDir, previous, filenames = RESTORE_FILES) {
 /** Serialize plugin installation and restore the previous profile after failure or interruption. */
 export async function syncThirdPartyPlugins(options) {
   const profileDir = resolve(options.profileDir)
+  const localOnly = options.localOnly ?? readMachineLocalSettings(dirname(dirname(profileDir)))
+  options = { ...options, localOnly }
   const desktop = profileName(options.profile ?? 'web') === 'desktop'
   if (desktop) requireDesktopManager(options.desktopManager)
   // Reject missing input before creating operation records or profile directories.
@@ -673,7 +678,8 @@ export async function syncThirdPartyPlugins(options) {
     // Validate source and deletion conflicts before saving a new recovery point.
     const installed = readInstalledThirdPartyPlugins(profileDir)
     const manifest = readThirdPartyManifest(manifestPath(options.repositoryPath), options.profile ?? 'web')
-    staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), options.profile ?? 'web')
+    manifest.plugins = manifest.plugins.filter(plugin => !localOnly.names.has(plugin.name))
+    staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), options.profile ?? 'web', localOnly)
     const packageManifests = await preflightGitPlugins(profileDir, manifest.plugins, readInstalledThirdPartyPlugins(profileDir, { includeManager: true }), options.spawnCommand ?? spawn)
     const previous = Object.fromEntries(RESTORE_FILES.map(name => [name, existsSync(join(profileDir, name)) ? readFileSync(join(profileDir, name), 'utf8') : null]))
     const desktopInstalled = desktop ? readInstalledThirdPartyPlugins(profileDir, { includeManager: true }) : []
@@ -682,7 +688,7 @@ export async function syncThirdPartyPlugins(options) {
         const current = desktopInstalled.find(item => item.name === plugin.name)
         return current === undefined || current.version !== plugin.version || current.requested !== (sourceKind(plugin.specifier) === 'github' ? plugin.specifier : plugin.version)
       }).map(plugin => plugin.name),
-      ...staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), 'desktop'),
+      ...staleManagedPlugins(profileDir, installed, new Set(manifest.plugins.map(plugin => plugin.name)), 'desktop', localOnly),
     ])] : undefined
     const journal = { schemaVersion: 1, state: 'applying', operationId: options.operationId ?? null, startedAt: new Date().toISOString(), previous,
       ...(desktop ? { desktopTargets, desktopPrevious: desktopInstalled.map(({ name, version }) => ({ name, version })) } : {}),
@@ -707,10 +713,11 @@ export async function syncThirdPartyPlugins(options) {
 }
 
 /** Read the committed manifest beside the currently installed profile plugins. */
-export function inspectThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web' }) {
+export function inspectThirdPartyPlugins({ profileDir, repositoryPath, profile = 'web', localOnly = readMachineLocalSettings(dirname(dirname(resolve(profileDir)))) }) {
   const safeProfile = profileName(profile)
   const path = manifestPath(repositoryPath)
   const manifest = readThirdPartyManifest(path, safeProfile)
+  manifest.plugins = manifest.plugins.filter(plugin => !localOnly.names.has(plugin.name))
   const installed = readInstalledThirdPartyPlugins(profileDir, { includeManager: true })
   const installedByName = new Map(installed.map(plugin => [plugin.name, plugin]))
   return {

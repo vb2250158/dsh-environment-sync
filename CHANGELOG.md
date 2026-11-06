@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2 (2026-11-06)
+
+- Add explicit `localOnlyPlugins` ownership in the existing machine overlay. Use one declaration for portable plugin/environment export, local patch/settings retention, incoming package selection, baseline removals and rollback. Keep undeclared local sources rejected and expose declarations in status.
+- 在现有本机配置中声明 `localOnlyPlugins`，统一导出过滤、设置与启停保留、安装及基线删除；未声明的本地来源继续拒绝，状态接口可回读声明。
+
 ## 0.8.1 (2026-11-05)
 
 - Share Windows Node resolution and source Web Host identification between launchers and supervisors, including renamed runtime executables; standalone restart recovery copies the helper as well. Bootstrap preserves explicit runtime selection without fixing the default. Existing pause and restart semantics remain unchanged.
